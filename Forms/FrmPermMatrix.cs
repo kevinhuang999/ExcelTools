@@ -22,43 +22,34 @@ public class FrmPermMatrix : Form
 
     public FrmPermMatrix()
     {
-        Text = "RoleMenus";
-        Size = new Size(360, 200);
+        Text = "权限矩阵";
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
-        _txtRoleColumn = AddRow("Role Column:", 20, Settings.Get(KeyRoleColumn, "A"));
-        _txtGroupColumn = AddRow("Group Column:", 50, Settings.Get(KeyGroupColumn, "B"));
-        _txtFunctionColumn = AddRow("Function Column:", 80, Settings.Get(KeyFunctionColumn, "C"));
+        var layout = new FormLayout(this,
+            "读取当前工作表的角色/分组/功能，生成「角色 × 功能」权限矩阵，\n有权限的格子标记 *。结果写入新的 PermMatrix 工作表。");
 
-        var btnOK = new Button { Text = "&OK", Location = new Point(160, 125), Size = new Size(85, 28) };
-        btnOK.Click += BtnOK_Click;
+        _txtRoleColumn = layout.AddField("角色列:", Settings.Get(KeyRoleColumn, "A"));
+        _txtGroupColumn = layout.AddField("分组列:", Settings.Get(KeyGroupColumn, "B"));
+        _txtFunctionColumn = layout.AddField("功能列:", Settings.Get(KeyFunctionColumn, "C"));
 
-        var btnCancel = new Button { Text = "&Cancel", Location = new Point(255, 125), Size = new Size(85, 28) };
-        btnCancel.Click += (_, _) => Close();
+        var buttons = layout.Finish(("确定", true), ("取消", false));
+        buttons[0].Click += BtnOK_Click;
+        buttons[1].Click += (_, _) => Close();
 
-        Controls.Add(btnOK);
-        Controls.Add(btnCancel);
+        AcceptButton = buttons[0];
+        CancelButton = buttons[1];
 
-        AcceptButton = btnOK;
-        UiTheme.Apply(this, "Builds a role-by-function permission matrix from the active\nsheet, marking granted permissions with *.");
-        CancelButton = btnCancel;
+        UiTheme.Apply(this);
     }
 
-    private TextBox AddRow(string label, int top, string initial)
-    {
-        Controls.Add(new Label { Text = label, Location = new Point(15, top + 3), AutoSize = true });
-        var box = new TextBox { Location = new Point(140, top), Width = 70, Text = initial };
-        Controls.Add(box);
-        return box;
-    }
 
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         string roleColumn = _txtRoleColumn.Text.Trim().ToUpperInvariant();
         string groupColumn = _txtGroupColumn.Text.Trim().ToUpperInvariant();
@@ -66,17 +57,17 @@ public class FrmPermMatrix : Form
 
         if (!IsColumnLetter(roleColumn) || !IsColumnLetter(groupColumn) || !IsColumnLetter(functionColumn))
         {
-            MessageBox.Show("Columns must be column letters such as A or AB.", "Warning");
+            MessageBox.Show("列必须是列字母，例如 A 或 AB。", "提示");
             return;
         }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int _))
         {
-            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
+        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
 
         int roleIndex = ColumnLetterToIndex(roleColumn);
         int groupIndex = ColumnLetterToIndex(groupColumn);
@@ -109,13 +100,13 @@ public class FrmPermMatrix : Form
 
         if (roles.Count == 0 || functions.Count == 0)
         {
-            MessageBox.Show("No usable data found.", "Warning");
+            MessageBox.Show("未找到有效数据。", "提示");
             return;
         }
 
         dynamic targetSheet = CreateTargetSheet(app, "PermMatrix");
 
-        targetSheet.Cells[1, 1] = "No.";
+        targetSheet.Cells[1, 1] = "序号";
         targetSheet.Cells[1, 2] = "Group";
         targetSheet.Cells[1, 3] = "Function";
         for (int c = 0; c < roles.Count; c++)
@@ -143,7 +134,7 @@ public class FrmPermMatrix : Form
         targetSheet.Columns.AutoFit();
         app.ActiveWorkbook.Save();
 
-        MessageBox.Show($"Finished and Saved! {roles.Count} role(s), {functions.Count} function(s).", "RoleMenus");
+        MessageBox.Show($"已完成并保存！ {roles.Count} role(s), {functions.Count} function(s).", "RoleMenus");
         Close();
     }
 

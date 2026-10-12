@@ -4,7 +4,7 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// Sort the active sheet by one or two columns. The original data is backed up
+/// 排序 the active sheet by one or two columns. The original data is backed up
 /// to an "Original" sheet first.
 ///
 /// Step flow matches the original add-in: open, press the action button. The
@@ -20,93 +20,54 @@ public class FrmSort : Form
 
     public FrmSort()
     {
-        Text = "Sort";
-        Size = new Size(340, 165);
+        Text = "按列排序";
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
-        var lblColumn1 = new Label
-        {
-            Text = "Sort Column:",
-            Location = new Point(15, 22),
-            AutoSize = true
-        };
-        _txtSortColumn1 = new TextBox
-        {
-            Location = new Point(135, 19),
-            Width = 70,
-            Text = Settings.Get(KeyCol1, "A")
-        };
+        var layout = new FormLayout(this,
+            "按指定列对当前工作表排序。\n排序前会把原始数据整表备份到 Original 工作表。");
 
-        var lblColumn2 = new Label
-        {
-            Text = "Then By:",
-            Location = new Point(15, 52),
-            AutoSize = true
-        };
-        _txtSortColumn2 = new TextBox
-        {
-            Location = new Point(135, 49),
-            Width = 70,
-            Text = Settings.Get(KeyCol2, "")
-        };
+        _txtSortColumn1 = layout.AddField("排序列:", Settings.Get(KeyCol1, "A"));
+        _txtSortColumn2 = layout.AddField("次要排序列:", Settings.Get(KeyCol2, ""));
 
-        var btnSort = new Button
-        {
-            Text = "Sort",
-            Location = new Point(120, 95),
-            Size = new Size(90, 28)
-        };
-        btnSort.Click += BtnSort_Click;
+        var buttons = layout.Finish(("排序", true), ("取消", false));
+        buttons[0].Click += BtnSort_Click;
+        buttons[1].Click += (_, _) => Close();
 
-        var btnCancel = new Button
-        {
-            Text = "Cancel",
-            Location = new Point(220, 95),
-            Size = new Size(90, 28)
-        };
-        btnCancel.Click += (_, _) => Close();
+        AcceptButton = buttons[0];
+        CancelButton = buttons[1];
 
-        Controls.Add(lblColumn1);
-        Controls.Add(_txtSortColumn1);
-        Controls.Add(lblColumn2);
-        Controls.Add(_txtSortColumn2);
-        Controls.Add(btnSort);
-        Controls.Add(btnCancel);
-
-        AcceptButton = btnSort;
-        UiTheme.Apply(this, "Sorts the active sheet by the column(s) you name.\nThe original data is copied to an Original sheet first.");
-        CancelButton = btnCancel;
+        UiTheme.Apply(this);
     }
 
     private void BtnSort_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         string column1 = _txtSortColumn1.Text.Trim().ToUpperInvariant();
         string column2 = _txtSortColumn2.Text.Trim().ToUpperInvariant();
 
         if (!IsColumnLetter(column1))
         {
-            MessageBox.Show("Sort Column must be a column letter such as A or AB.", "Warning");
+            MessageBox.Show("排序列必须是列字母，例如 A 或 AB。", "提示");
             return;
         }
         if (!string.IsNullOrEmpty(column2) && !IsColumnLetter(column2))
         {
-            MessageBox.Show("Then By must be a column letter, or left empty.", "Warning");
+            MessageBox.Show("次要排序列必须是列字母，或留空。", "提示");
             return;
         }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("Not enough data to sort.", "Warning"); return; }
+        if (rows < 2) { MessageBox.Show("数据不足，无法排序。", "提示"); return; }
 
         Settings.SetMany((KeyCol1, column1), (KeyCol2, column2));
 
@@ -151,7 +112,7 @@ public class FrmSort : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Sort failed: {ex.Message}", "Error");
+            MessageBox.Show($"排序失败： {ex.Message}", "错误");
             return;
         }
 
@@ -159,7 +120,7 @@ public class FrmSort : Form
         ws.Columns.AutoFit();
         app.ActiveWorkbook.Save();
 
-        MessageBox.Show("Finished and Saved!", "Sort");
+        MessageBox.Show("已完成并保存！", "排序");
         Close();
     }
 

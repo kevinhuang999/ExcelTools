@@ -13,7 +13,7 @@ internal static class FrmGetFileNames
     public static void Run()
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         using var dialog = new FolderBrowserDialog();
         if (dialog.ShowDialog() != DialogResult.OK) return;
@@ -28,15 +28,15 @@ internal static class FrmGetFileNames
                 .OrderBy(f => f)
                 .ToList();
 
-            if (files.Count == 0) { MessageBox.Show("No files found.", "Warning"); return; }
+            if (files.Count == 0) { MessageBox.Show("未找到文件。", "提示"); return; }
 
             dynamic ws = app.ActiveSheet;
             int startRow = (int)ws.UsedRange.Rows.Count + 1;
 
-            ws.Cells[startRow, 1] = "No.";
-            ws.Cells[startRow, 2] = "File Name";
-            ws.Cells[startRow, 3] = "Relative Path";
-            ws.Cells[startRow, 4] = "Size (KB)";
+            ws.Cells[startRow, 1] = "序号";
+            ws.Cells[startRow, 2] = "文件名";
+            ws.Cells[startRow, 3] = "相对路径";
+            ws.Cells[startRow, 4] = "大小(KB)";
 
             for (int i = 0; i < files.Count; i++)
             {
@@ -58,11 +58,11 @@ internal static class FrmGetFileNames
 
             ws.Columns.AutoFit();
             app.ActiveWorkbook.Save();
-            MessageBox.Show($"Finished and Saved! {files.Count} file name(s) written.", "File Names");
+            MessageBox.Show($"已完成并保存！ {files.Count} file name(s) written.", "File Names");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to list files: {ex.Message}", "Error");
+            MessageBox.Show($"获取文件列表失败：{ex.Message}", "错误");
         }
     }
 }

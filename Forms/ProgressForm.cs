@@ -12,7 +12,7 @@ public class ProgressForm : Form
 
     public ProgressForm()
     {
-        this.Text = "Working";
+        this.Text = "处理中";
         this.Size = new Size(380, 110);
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
         this.StartPosition = FormStartPosition.CenterScreen;
@@ -34,7 +34,7 @@ public class ProgressForm : Form
         {
             Location = new Point(15, 60),
             Size = new Size(340, 25),
-            Text = "Working, please wait...",
+            Text = "正在处理，请稍候…",
             TextAlign = ContentAlignment.MiddleLeft
         };
 

@@ -21,68 +21,45 @@ public class FrmFilter : Form
 
     public FrmFilter()
     {
-        Text = "Filter";
-        Size = new Size(420, 300);
+        Text = "条件筛选";
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
-        Controls.Add(new Label { Text = "Filter Fields:", Location = new Point(15, 15), AutoSize = true });
-        _rtbConditions = new RichTextBox { Location = new Point(15, 35), Size = new Size(370, 100) };
-        Controls.Add(_rtbConditions);
+        var layout = new FormLayout(this,
+            "把符合条件的行复制到新的 Filtered 工作表。\n每行写一个条件，格式：列字母 + 空格 + 值，例如  A 1001");
 
-        Controls.Add(new Label { Text = "Column:", Location = new Point(15, 148), AutoSize = true });
-        _txtColumn = new TextBox
-        {
-            Location = new Point(120, 145),
-            Width = 70,
-            Text = Settings.Get(KeyColumn, "A")
-        };
-        Controls.Add(_txtColumn);
+        _rtbConditions = layout.AddMultilineField("筛选条件:", 110);
+        _txtColumn = layout.AddField("关键列:", Settings.Get(KeyColumn, "A"));
+        _txtHeaderRow = layout.AddField("表头行号:", Settings.Get(KeyHeaderRow, "1"));
 
-        Controls.Add(new Label { Text = "HeaderRowNo:", Location = new Point(15, 178), AutoSize = true });
-        _txtHeaderRow = new TextBox
-        {
-            Location = new Point(120, 175),
-            Width = 70,
-            Text = Settings.Get(KeyHeaderRow, "1")
-        };
-        Controls.Add(_txtHeaderRow);
+        var buttons = layout.Finish(("筛选", true), ("SQL 查询", false), ("取消", false));
+        buttons[0].Click += BtnOK_Click;
+        buttons[1].Click += BtnSQL_Click;
+        buttons[2].Click += (_, _) => Close();
 
-        var btnOK = new Button { Text = "&OK", Location = new Point(15, 215), Size = new Size(85, 28) };
-        btnOK.Click += BtnOK_Click;
+        AcceptButton = buttons[0];
+        CancelButton = buttons[2];
 
-        var btnSQL = new Button { Text = "&SQL", Location = new Point(110, 215), Size = new Size(85, 28) };
-        btnSQL.Click += BtnSQL_Click;
-
-        var btnCancel = new Button { Text = "&Cancel", Location = new Point(205, 215), Size = new Size(85, 28) };
-        btnCancel.Click += (_, _) => Close();
-
-        Controls.Add(btnOK);
-        Controls.Add(btnSQL);
-        Controls.Add(btnCancel);
-
-        AcceptButton = btnOK;
-        UiTheme.Apply(this, "Copies matching rows into a new Filtered sheet. Type one\ncondition per line as:  column value");
-        CancelButton = btnCancel;
+        UiTheme.Apply(this);
     }
 
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
+        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
 
         var conditions = ParseConditions(_rtbConditions.Text);
-        if (conditions.Count == 0) { MessageBox.Show("Please enter at least one filter condition.", "Warning"); return; }
+        if (conditions.Count == 0) { MessageBox.Show("请至少输入一个筛选条件。", "提示"); return; }
 
         int headerRow = ParseHeaderRow();
 
@@ -119,7 +96,7 @@ public class FrmFilter : Form
 
             if (r % 500 == 0)
             {
-                progress.SetMessage($"Filtering... {r}/{rows}");
+                progress.SetMessage($"正在筛选… {r}/{rows}");
                 progress.SetProgress((int)(r * 100.0 / rows));
                 Application.DoEvents();
             }
@@ -128,31 +105,31 @@ public class FrmFilter : Form
         targetSheet.Columns.AutoFit();
         app.ActiveWorkbook.Save();
         progress.SetProgress(100);
-        progress.SetMessage($"Done. {matched} row(s) matched.");
+        progress.SetMessage($"完成。 {matched} row(s) matched.");
         Application.DoEvents();
         System.Threading.Thread.Sleep(600);
 
-        MessageBox.Show($"Finished and Saved! {matched} row(s) matched.", "Filter");
+        MessageBox.Show($"已完成并保存！ {matched} row(s) matched.", "Filter");
         Close();
     }
 
     private void BtnSQL_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
+        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
 
         string keyColumn = _txtColumn.Text.Trim().ToUpperInvariant();
         if (!IsColumnLetter(keyColumn))
         {
-            MessageBox.Show("Column must be a column letter such as A or AB.", "Warning");
+            MessageBox.Show("Column must be a column letter such as A or AB.", "提示");
             return;
         }
 
@@ -169,12 +146,12 @@ public class FrmFilter : Form
             targetSheet.Columns.AutoFit();
             app.ActiveWorkbook.Save();
 
-            MessageBox.Show("Finished and Saved!", "Filter");
+            MessageBox.Show("已完成并保存！", "Filter");
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"SQL filter failed: {ex.Message}", "Error");
+            MessageBox.Show($"SQL 筛选失败：{ex.Message}", "错误");
         }
     }
 

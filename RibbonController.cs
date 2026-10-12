@@ -120,7 +120,7 @@ public class RibbonController : ExcelRibbon
         {
             string path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "ExcelTools_ErrorLog.txt");
+                "ExcelTools_错误Log.txt");
             File.AppendAllText(
                 path,
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {toolName}\n{detail}" +

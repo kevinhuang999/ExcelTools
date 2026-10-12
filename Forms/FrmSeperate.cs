@@ -18,64 +18,42 @@ public class FrmSeperate : Form
 
     public FrmSeperate()
     {
-        Text = "Seperate";
-        Size = new Size(370, 215);
+        Text = "拆分工作表";
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
-        var lblColumn = UiTheme.FieldLabel("Column Header:");
-        lblColumn.Location = new Point(18, 26);
+        var layout = new FormLayout(this,
+            "按指定列的值，把当前工作表拆成多个工作表：\n每一个不同的值生成一张新表，表名即该值。");
 
-        _txtColumnHeader = new TextBox
-        {
-            Location = new Point(145, 23),
-            Width = 80,
-            Text = Settings.Get(SettingsKey, "A")
-        };
+        _txtColumnHeader = layout.AddField("列标题:", Settings.Get(SettingsKey, "A"));
 
-        var btnSeperate = UiTheme.PrimaryButton("Seperate");
-        btnSeperate.Location = new Point(120, 90);
+        var buttons = layout.Finish(("拆分", true), ("取消", false));
+        buttons[0].Click += BtnSeperate_Click;
+        buttons[1].Click += (_, _) => Close();
 
-        var btnCancel = UiTheme.SecondaryButton("Cancel");
-        btnCancel.Location = new Point(240, 90);
+        AcceptButton = buttons[0];
+        CancelButton = buttons[1];
 
-        btnSeperate.Click += BtnSeperate_Click;
-        btnCancel.Click += (_, _) => Close();
-
-        Controls.Add(lblColumn);
-        Controls.Add(_txtColumnHeader);
-        Controls.Add(btnSeperate);
-        Controls.Add(btnCancel);
-
-        AcceptButton = btnSeperate;
-        CancelButton = btnCancel;
-
-        UiTheme.Apply(this,
-            "Splits the active sheet, creating one sheet for each distinct\nvalue found in the column you name.",
-            (lblColumn, "The column whose values decide how the sheet is split."),
-            (_txtColumnHeader, "Column letter of the key field, for example A or AB."),
-            (btnSeperate, "Split the active sheet now."),
-            (btnCancel, "Close without changing anything."));
-
+        UiTheme.Apply(this);
         _txtColumnHeader.SelectAll();
     }
 
     private void BtnSeperate_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         string column = _txtColumnHeader.Text.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(column))
         {
-            MessageBox.Show("Please enter the Column Header!", "Warning");
+            MessageBox.Show("请输入列标题！", "提示");
             return;
         }
         if (!System.Text.RegularExpressions.Regex.IsMatch(column, "^[A-Z]{1,3}$"))
         {
-            MessageBox.Show("The Column Header must be a column letter such as A or AB.", "Warning");
+            MessageBox.Show("列标题必须是列字母，例如 A 或 AB。", "提示");
             return;
         }
 
@@ -83,7 +61,7 @@ public class FrmSeperate : Form
 
         if (string.IsNullOrEmpty(Convert.ToString(mainSheet.Cells[1, column].Value)))
         {
-            MessageBox.Show("The header should not be Empty!", "Warning");
+            MessageBox.Show("表头不能为空！", "提示");
             return;
         }
 
@@ -91,7 +69,7 @@ public class FrmSeperate : Form
 
         if (!MyTools.ClearSpecialSymbols(mainSheet, out int rowsCount, out int colsCount))
         {
-            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         app.ActiveWorkbook.Save();
@@ -99,12 +77,12 @@ public class FrmSeperate : Form
         List<string>? listByField = MyTools.GetByField(app, column);
         if (listByField == null)
         {
-            MessageBox.Show("Fields not found!", "Warning");
+            MessageBox.Show("未找到有效数据！", "提示");
             return;
         }
         if (!MyTools.IsSheetNameValid(listByField))
         {
-            MessageBox.Show("Contains strings that do not conform to the worksheet naming convention!", "Warning");
+            MessageBox.Show("存在不符合工作表命名规则的字符！", "提示");
             return;
         }
 
@@ -117,7 +95,7 @@ public class FrmSeperate : Form
         foreach (string item in listByField)
         {
             index++;
-            progress.SetMessage($"Seperating: {item}  ({index}/{listByField.Count})");
+            progress.SetMessage($"正在拆分：{item}  ({index}/{listByField.Count})");
             progress.SetProgress((int)(index * 100.0 / listByField.Count));
             Application.DoEvents();
 
@@ -139,12 +117,12 @@ public class FrmSeperate : Form
         }
 
         progress.SetProgress(100);
-        progress.SetMessage("Done.");
+        progress.SetMessage("完成。");
         app.ActiveWorkbook.Save();
 
         Close();
 
-        if (DialogResult.Yes == MessageBox.Show("Finish and Saved! Close Now?", "Question", MessageBoxButtons.YesNo))
+        if (DialogResult.Yes == MessageBox.Show("已完成并保存，现在关闭吗？", "确认", MessageBoxButtons.YesNo))
         {
             app.Quit();
         }

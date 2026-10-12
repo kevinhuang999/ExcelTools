@@ -22,96 +22,58 @@ public class FrmCountDistinct : Form
 
     public FrmCountDistinct()
     {
-        Text = "Count Distinct";
-        Size = new Size(380, 200);
+        Text = "累计去重计数";
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
-        Controls.Add(new Label { Text = "Count Column:", Location = new Point(15, 20), AutoSize = true });
-        _txtCountColumn = new TextBox
-        {
-            Location = new Point(150, 17),
-            Width = 70,
-            Text = Settings.Get(KeyCountColumn, "A")
-        };
-        Controls.Add(_txtCountColumn);
+        var layout = new FormLayout(this,
+            "对指定列逐行统计：截至当前行，一共出现过多少个不重复的值。\n结果写入输出列，输出列必须在数据区右侧之外。");
 
-        Controls.Add(new Label { Text = "Output Column:", Location = new Point(15, 50), AutoSize = true });
-        _txtOutputColumn = new TextBox
-        {
-            Location = new Point(150, 47),
-            Width = 70,
-            Text = Settings.Get(KeyOutputColumn, "Z")
-        };
-        Controls.Add(_txtOutputColumn);
+        _txtCountColumn = layout.AddField("统计列:", Settings.Get(KeyCountColumn, "A"));
+        _txtOutputColumn = layout.AddField("输出列:", Settings.Get(KeyOutputColumn, "Z"));
+        _progressBar = layout.AddProgressBar();
+        _lblStatus = layout.AddStatusLabel();
 
-        _progressBar = new ProgressBar
-        {
-            Location = new Point(15, 82),
-            Size = new Size(330, 20),
-            Minimum = 0,
-            Maximum = 100,
-            Style = ProgressBarStyle.Continuous
-        };
-        Controls.Add(_progressBar);
+        var buttons = layout.Finish(("统计", true), ("取消", false));
+        buttons[0].Click += BtnSum_Click;
+        buttons[1].Click += (_, _) => Close();
 
-        _lblStatus = new Label { Location = new Point(15, 106), Size = new Size(330, 18), Text = "" };
-        Controls.Add(_lblStatus);
+        AcceptButton = buttons[0];
+        CancelButton = buttons[1];
 
-        var btnSum = new Button
-        {
-            Text = "Sum",
-            Location = new Point(165, 130),
-            Size = new Size(85, 28)
-        };
-        btnSum.Click += BtnSum_Click;
-
-        var btnCancel = new Button
-        {
-            Text = "Cancel",
-            Location = new Point(260, 130),
-            Size = new Size(85, 28)
-        };
-        btnCancel.Click += (_, _) => Close();
-
-        Controls.Add(btnSum);
-        Controls.Add(btnCancel);
-
-        AcceptButton = btnSum;
-        UiTheme.Apply(this, "For each row, counts how many distinct values have appeared\nso far in the column you name.");
-        CancelButton = btnCancel;
+        UiTheme.Apply(this);
     }
 
     private void BtnSum_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
+        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
 
         string countColumn = _txtCountColumn.Text.Trim().ToUpperInvariant();
         string outputColumn = _txtOutputColumn.Text.Trim().ToUpperInvariant();
 
         if (!IsColumnLetter(countColumn) || !IsColumnLetter(outputColumn))
         {
-            MessageBox.Show("Columns must be column letters such as A or AB.", "Warning");
+            MessageBox.Show("列必须是列字母，例如 A 或 AB。", "提示");
             return;
         }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
+        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
 
         int countColumnIndex = ColumnLetterToIndex(countColumn);
         int outputColumnIndex = ColumnLetterToIndex(outputColumn);
 
         if (outputColumnIndex <= cols)
         {
-            MessageBox.Show("The output column must be outside the data range.", "Warning");
+            MessageBox.Show("输出列必须在数据范围之外。", "提示");
             return;
         }
 
@@ -141,7 +103,7 @@ public class FrmCountDistinct : Form
         _lblStatus.Text = "";
         app.ActiveWorkbook.Save();
 
-        if (DialogResult.OK == MessageBox.Show("Success!", "Count Distinct"))
+        if (DialogResult.OK == MessageBox.Show("完成！", "Count Distinct"))
         {
             Close();
         }

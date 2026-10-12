@@ -15,7 +15,9 @@
   <ItemGroup>
     <PackageReference Include="ExcelDna.Integration" Version="1.9.0-*" />
     <PackageReference Include="ExcelDna.AddIn" Version="1.9.0-*" />
-    <PackageReference Include="System.Data.OleDb" Version="7.0.0" />
+    <!-- 必须与 TargetFramework 主版本号一致：7.0.0 会拖入 System.Drawing.Common 7.0.0，
+         覆盖 framework 版本导致 Control.set_Font 类型分裂，抛 MissingMethodException -->
+    <PackageReference Include="System.Data.OleDb" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup>

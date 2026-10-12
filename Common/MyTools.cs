@@ -7,7 +7,7 @@ using System.Diagnostics;
 /// <summary>
 /// 公共工具函数。从原始 MyTools 改写，去掉公司特定逻辑。
 /// </summary>
-public static class MyTools
+internal static class MyTools
 {
     private static readonly char[] InvalidSheetChars = { ':', '\\', '/', '?', '*', '[', ']' };
 

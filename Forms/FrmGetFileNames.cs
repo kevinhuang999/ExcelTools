@@ -6,7 +6,7 @@ using System.IO;
 /// <summary>
 /// 文件名列表：弹文件夹选择器，递归获取目录下所有文件名，写入当前活动工作表。
 /// </summary>
-public static class FrmGetFileNames
+internal static class FrmGetFileNames
 {
     public static void Run()
     {

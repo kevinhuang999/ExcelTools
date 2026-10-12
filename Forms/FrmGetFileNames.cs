@@ -1,6 +1,7 @@
 namespace ExcelTools.Forms;
 
 using ExcelDna.Integration;
+using ExcelTools.Common;
 using System.IO;
 
 /// <summary>
@@ -13,7 +14,7 @@ internal static class FrmGetFileNames
     public static void Run()
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         using var dialog = new FolderBrowserDialog();
         if (dialog.ShowDialog() != DialogResult.OK) return;
@@ -28,15 +29,15 @@ internal static class FrmGetFileNames
                 .OrderBy(f => f)
                 .ToList();
 
-            if (files.Count == 0) { MessageBox.Show("未找到文件。", "提示"); return; }
+            if (files.Count == 0) { MessageBox.Show(Loc.T("未找到文件。", "No files found."), Loc.T("提示", "Warning")); return; }
 
             dynamic ws = app.ActiveSheet;
             int startRow = (int)ws.UsedRange.Rows.Count + 1;
 
-            ws.Cells[startRow, 1] = "序号";
-            ws.Cells[startRow, 2] = "文件名";
-            ws.Cells[startRow, 3] = "相对路径";
-            ws.Cells[startRow, 4] = "大小(KB)";
+            ws.Cells[startRow, 1] = Loc.T("序号", "No.");
+            ws.Cells[startRow, 2] = Loc.T("文件名", "File Name");
+            ws.Cells[startRow, 3] = Loc.T("相对路径", "Relative Path");
+            ws.Cells[startRow, 4] = Loc.T("大小(KB)", "Size (KB)");
 
             for (int i = 0; i < files.Count; i++)
             {
@@ -58,11 +59,11 @@ internal static class FrmGetFileNames
 
             ws.Columns.AutoFit();
             app.ActiveWorkbook.Save();
-            MessageBox.Show($"已完成并保存！ {files.Count} file name(s) written.", "File Names");
+            MessageBox.Show(Loc.T($"已完成并保存！ {files.Count} file name(s) written.", "Finished and saved! {files.Count} file name(s) written."), Loc.T("文件名列表", "File Names"));
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"获取文件列表失败：{ex.Message}", "错误");
+            MessageBox.Show(Loc.T($"获取文件列表失败：{ex.Message}", "Failed to list files: {ex.Message}"), Loc.T("错误", "Error"));
         }
     }
 }

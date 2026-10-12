@@ -28,23 +28,23 @@ public class FrmTimeCompare : Form
 
     public FrmTimeCompare()
     {
-        Text = "差异比对";
+        Text = Loc.T("差异比对", "Find Differences");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "按匹配列关联两张表，列出比对列取值不一致的行。\n结果写入新的 DiffResult 工作表。");
+            Loc.T("按匹配列关联两张表，列出比对列取值不一致的行。\n结果写入新的 DiffResult 工作表。", "Match two sheets on a key column and list rows whose comparison column differs.\nResults go to a new DiffResult sheet."));
 
-        _txtSheet1 = layout.AddField("表1:", Settings.Get(KeySheet1, ""));
-        _txtMatchColumn1 = layout.AddField("表1匹配列:", Settings.Get(KeyMatch1, "A"));
-        _txtCompareColumn1 = layout.AddField("表1比对列:", Settings.Get(KeyCompare1, "B"));
-        _txtSheet2 = layout.AddField("表2:", Settings.Get(KeySheet2, ""));
-        _txtMatchColumn2 = layout.AddField("表2匹配列:", Settings.Get(KeyMatch2, "A"));
-        _txtCompareColumn2 = layout.AddField("表2比对列:", Settings.Get(KeyCompare2, "B"));
+        _txtSheet1 = layout.AddField(Loc.T("表1:", "Sheet1:"), Settings.Get(KeySheet1, ""));
+        _txtMatchColumn1 = layout.AddField(Loc.T("表1匹配列:", "Match Col1:"), Settings.Get(KeyMatch1, "A"));
+        _txtCompareColumn1 = layout.AddField(Loc.T("表1比对列:", "Compare Col1:"), Settings.Get(KeyCompare1, "B"));
+        _txtSheet2 = layout.AddField(Loc.T("表2:", "Sheet2:"), Settings.Get(KeySheet2, ""));
+        _txtMatchColumn2 = layout.AddField(Loc.T("表2匹配列:", "Match Col2:"), Settings.Get(KeyMatch2, "A"));
+        _txtCompareColumn2 = layout.AddField(Loc.T("表2比对列:", "Compare Col2:"), Settings.Get(KeyCompare2, "B"));
 
-        var buttons = layout.Finish(("比对", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("比对", "Compare"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnMatch_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -58,7 +58,7 @@ public class FrmTimeCompare : Form
     private void BtnMatch_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string sheet1Name = _txtSheet1.Text.Trim();
         string sheet2Name = _txtSheet2.Text.Trim();
@@ -69,24 +69,24 @@ public class FrmTimeCompare : Form
 
         if (string.IsNullOrEmpty(sheet1Name) || string.IsNullOrEmpty(sheet2Name))
         {
-            MessageBox.Show("请输入两个工作表名称。", "提示");
+            MessageBox.Show(Loc.T("请输入两个工作表名称。", "Please enter both sheet names."), Loc.T("提示", "Warning"));
             return;
         }
         if (!IsColumnLetter(matchColumn1) || !IsColumnLetter(compareColumn1) ||
             !IsColumnLetter(matchColumn2) || !IsColumnLetter(compareColumn2))
         {
-            MessageBox.Show("列必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("列必须是列字母，例如 A 或 AB。", "Columns must be column letters such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
 
         dynamic? sheet1 = FindSheet(app, sheet1Name);
         dynamic? sheet2 = FindSheet(app, sheet2Name);
-        if (sheet1 == null) { MessageBox.Show($"找不到工作表：{sheet1Name}", "提示"); return; }
-        if (sheet2 == null) { MessageBox.Show($"找不到工作表：{sheet2Name}", "提示"); return; }
+        if (sheet1 == null) { MessageBox.Show(Loc.T($"找不到工作表：{sheet1Name}", "Sheet not found: {sheet1Name}"), Loc.T("提示", "Warning")); return; }
+        if (sheet2 == null) { MessageBox.Show(Loc.T($"找不到工作表：{sheet2Name}", "Sheet not found: {sheet2Name}"), Loc.T("提示", "Warning")); return; }
 
         MyTools.ClearSpecialSymbols(sheet1, out int rows1, out int _);
         MyTools.ClearSpecialSymbols(sheet2, out int rows2, out int _);
-        if (rows1 < 2 || rows2 < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+        if (rows1 < 2 || rows2 < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
 
         Settings.SetMany(
             (KeySheet1, sheet1Name), (KeySheet2, sheet2Name),
@@ -133,7 +133,7 @@ public class FrmTimeCompare : Form
 
             if (i % 200 == 0)
             {
-                progress.SetMessage($"正在比对… {i}/{rows2}");
+                progress.SetMessage(Loc.T($"正在比对… {i}/{rows2}", "Comparing... {i}/{rows2}"));
                 progress.SetProgress((int)(i * 100.0 / rows2));
                 Application.DoEvents();
             }
@@ -142,11 +142,11 @@ public class FrmTimeCompare : Form
         targetSheet.Columns.AutoFit();
         app.ActiveWorkbook.Save();
         progress.SetProgress(100);
-        progress.SetMessage($"完成。 {differences} difference(s).");
+        progress.SetMessage(Loc.T($"完成。 {differences} difference(s).", "Done. {differences} difference(s)."));
         Application.DoEvents();
         System.Threading.Thread.Sleep(600);
 
-        MessageBox.Show($"已完成并保存！ {differences} difference(s).", "Find Differences");
+        MessageBox.Show(Loc.T($"已完成并保存！ {differences} difference(s).", "Finished and saved! {differences} difference(s)."), Loc.T("差异比对", "Find Differences"));
         Close();
     }
 

@@ -5,122 +5,144 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using ExcelDna.Integration.CustomUI;
+using ExcelTools.Common;
 using ExcelTools.Forms;
 
 /// <summary>
-/// Ribbon 提供者。
+/// Ribbon provider.
 ///
-/// ★关键：Excel-DNA 只有在程序集里存在一个继承 <see cref="ExcelRibbon"/> 的 public 类时，
-/// 才会把这个类作为 COM 加载项注册进 Excel，并由它向 Excel 提供功能区 XML。
-/// 只在 .dna 文件里写 &lt;CustomUI&gt; 而没有这个派生类，那段 XML 不会被任何东西读取，
-/// Excel 中就不会出现自定义选项卡（且不会报任何错）。
+/// Excel-DNA only registers a class as a COM add-in - and therefore only asks
+/// it for the ribbon XML - when a class deriving from <see cref="ExcelRibbon"/>
+/// exists. Writing CustomUI markup in the .dna file alone is not enough.
 ///
-/// 另外，本类的 onAction 是 public **实例**方法（COM 回调要求实例方法），
-/// 不是 public static 方法，因此不会被 Excel-DNA 当成 UDF 导出，不会污染函数名称空间。
+/// The markup is rebuilt on every request so that all labels and screen tips
+/// follow the display language of the Excel client (see <see cref="Loc"/>).
+/// The handlers are public instance methods, so they are never exported as
+/// worksheet functions and cannot collide with anything.
 /// </summary>
 [ComVisible(true)]
 public class RibbonController : ExcelRibbon
 {
-    private const string RibbonXml = @"<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
+    public override string GetCustomUI(string ribbonId) => BuildRibbonXml();
+
+    private static string BuildRibbonXml()
+    {
+        string tab = Loc.T("Excel 工具", "Excel Tools");
+
+        string groupData = Loc.T("数据处理", "Data");
+        string groupCompare = Loc.T("比对", "Compare");
+        string groupStat = Loc.T("统计", "Statistics");
+        string groupMatch = Loc.T("匹配", "Match");
+
+        return $@"<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
   <ribbon>
     <tabs>
-      <tab id='ExcelToolsTab' label='Excel 工具'>
-        <group id='grpData' label='数据处理'>
-          <button id='btnSeperate' label='拆分工作表' size='large' imageMso='SplitTable'
-                  onAction='OnSeperateClick' screentip='按某列值将总表拆成多个工作表'/>
-          <button id='btnFilter' label='条件筛选' size='large' imageMso='Filter'
-                  onAction='OnFilterClick' screentip='按多条件筛选数据到新表'/>
-          <button id='btnSort' label='按列排序' size='large' imageMso='SortUp'
-                  onAction='OnSortClick' screentip='按指定列排序并保留原始数据副本'/>
-          <button id='btnDelete' label='删除匹配行' size='large' imageMso='Delete'
-                  onAction='OnDeleteClick' screentip='删除与另一表匹配的行'/>
+      <tab id='ExcelToolsTab' label='{tab}'>
+        <group id='grpData' label='{groupData}'>
+          <button id='btnSeperate' label='{Loc.T("拆分工作表", "Seperate")}' size='large'
+                  imageMso='SplitTable' onAction='OnSeperateClick'
+                  screentip='{Loc.T("按某列的值，把当前工作表拆成多个工作表", "Split the sheet into one sheet per distinct value of a column")}'/>
+          <button id='btnFilter' label='{Loc.T("条件筛选", "Filter")}' size='large'
+                  imageMso='Filter' onAction='OnFilterClick'
+                  screentip='{Loc.T("按条件筛选行并复制到新工作表，支持逐行匹配与 SQL 两种方式", "Filter rows into a new sheet, by conditions or by SQL")}'/>
+          <button id='btnSort' label='{Loc.T("按列排序", "Sort")}' size='large'
+                  imageMso='SortUp' onAction='OnSortClick'
+                  screentip='{Loc.T("按指定列排序，并保留原始数据副本", "Sort by a column and keep a backup of the original data")}'/>
+          <button id='btnDelete' label='{Loc.T("删除匹配行", "Delete")}' size='large'
+                  imageMso='Delete' onAction='OnDeleteClick'
+                  screentip='{Loc.T("删除键值在另一张表中也存在的行", "Delete rows whose key also exists in another sheet")}'/>
         </group>
-        <group id='grpCompare' label='比对'>
-          <button id='btnCompare' label='两表比对' size='large' imageMso='CompareAndCombine'
-                  onAction='OnCompareClick' screentip='比较两个工作表的数据差异'/>
-          <button id='btnTimeCompare' label='差异比对' size='large' imageMso='FindDialogExcel'
-                  onAction='OnTimeCompareClick' screentip='按匹配列联表找比对列不一致的行'/>
-          <button id='btnCountDistinct' label='累计去重计数' size='large' imageMso='RemoveDuplicates'
-                  onAction='OnCountDistinctClick' screentip='截至每行统计某列累计不重复值数'/>
+        <group id='grpCompare' label='{groupCompare}'>
+          <button id='btnCompare' label='{Loc.T("两表比对", "Compare Files")}' size='large'
+                  imageMso='CompareAndCombine' onAction='OnCompareClick'
+                  screentip='{Loc.T("逐格比对两个 Excel 文件，列出全部差异", "Compare two Excel files cell by cell and list every difference")}'/>
+          <button id='btnTimeCompare' label='{Loc.T("差异比对", "Find Differences")}' size='large'
+                  imageMso='FindDialogExcel' onAction='OnTimeCompareClick'
+                  screentip='{Loc.T("按匹配列关联两张表，找出比对列不一致的行", "Match two sheets on a key column and list the rows that differ")}'/>
+          <button id='btnCountDistinct' label='{Loc.T("累计去重计数", "Count Distinct")}' size='large'
+                  imageMso='RemoveDuplicates' onAction='OnCountDistinctClick'
+                  screentip='{Loc.T("逐行统计截至当前行出现过多少个不重复值", "For each row, count the distinct values seen so far")}'/>
         </group>
-        <group id='grpStat' label='统计'>
-          <button id='btnGroupStat' label='分组统计' size='large' imageMso='PivotTableInsert'
-                  onAction='OnGroupStatClick' screentip='按分类字段生成交叉汇总表'/>
-          <button id='btnPermMatrix' label='权限矩阵' size='large' imageMso='CreateTable'
-                  onAction='OnPermMatrixClick' screentip='从数据生成角色×功能权限矩阵'/>
-          <button id='btnGetFileNames' label='文件名列表' size='large' imageMso='FileNew'
-                  onAction='OnGetFileNamesClick' screentip='递归提取目录下所有文件名到当前表'/>
+        <group id='grpStat' label='{groupStat}'>
+          <button id='btnGroupStat' label='{Loc.T("分组统计", "Statistics")}' size='large'
+                  imageMso='PivotTableInsert' onAction='OnGroupStatClick'
+                  screentip='{Loc.T("按分类与期间生成交叉汇总表", "Build a category by period cross table")}'/>
+          <button id='btnPermMatrix' label='{Loc.T("权限矩阵", "Role Menus")}' size='large'
+                  imageMso='CreateTable' onAction='OnPermMatrixClick'
+                  screentip='{Loc.T("生成角色与功能的权限矩阵", "Build a role by function permission matrix")}'/>
+          <button id='btnGetFileNames' label='{Loc.T("文件名列表", "File Names")}' size='large'
+                  imageMso='FileNew' onAction='OnGetFileNamesClick'
+                  screentip='{Loc.T("递归提取文件夹下所有文件名到当前表", "List the file names under a folder into the sheet")}'/>
         </group>
-        <group id='grpMatch' label='匹配'>
-          <button id='btnKeyMatch' label='多字段匹配' size='large' imageMso='LookUp'
-                  onAction='OnKeyMatchClick' screentip='按多字段联合匹配两表提取Key值'/>
+        <group id='grpMatch' label='{groupMatch}'>
+          <button id='btnKeyMatch' label='{Loc.T("多字段匹配", "Get Key")}' size='large'
+                  imageMso='LookUp' onAction='OnKeyMatchClick'
+                  screentip='{Loc.T("按最多三个字段联合匹配两表，回填 Key 值", "Match two tables on up to three fields and fill in the key")}'/>
         </group>
       </tab>
     </tabs>
   </ribbon>
 </customUI>";
+    }
 
-    public override string GetCustomUI(string ribbonId) => RibbonXml;
+    public void OnSeperateClick(IRibbonControl control)      => Run(Loc.T("拆分工作表", "Seperate"), () => new FrmSeperate());
+    public void OnFilterClick(IRibbonControl control)        => Run(Loc.T("条件筛选", "Filter"), () => new FrmFilter());
+    public void OnSortClick(IRibbonControl control)          => Run(Loc.T("按列排序", "Sort"), () => new FrmSort());
+    public void OnDeleteClick(IRibbonControl control)        => Run(Loc.T("删除匹配行", "Delete"), () => new FrmDelete());
+    public void OnCompareClick(IRibbonControl control)       => Run(Loc.T("两表比对", "Compare Files"), () => new FrmCompare());
+    public void OnCountDistinctClick(IRibbonControl control) => Run(Loc.T("累计去重计数", "Count Distinct"), () => new FrmCountDistinct());
+    public void OnGroupStatClick(IRibbonControl control)     => Run(Loc.T("分组统计", "Statistics"), () => new FrmGroupStat());
+    public void OnTimeCompareClick(IRibbonControl control)   => Run(Loc.T("差异比对", "Find Differences"), () => new FrmTimeCompare());
+    public void OnKeyMatchClick(IRibbonControl control)      => Run(Loc.T("多字段匹配", "Get Key"), () => new FrmKeyMatch());
+    public void OnPermMatrixClick(IRibbonControl control)    => Run(Loc.T("权限矩阵", "Role Menus"), () => new FrmPermMatrix());
+    public void OnGetFileNamesClick(IRibbonControl control)  => Run(Loc.T("文件名列表", "File Names"), () => { FrmGetFileNames.Run(); return null; });
 
-    public void OnSeperateClick(IRibbonControl control)      => Run("拆分工作表",   () => new FrmSeperate());
-    public void OnFilterClick(IRibbonControl control)        => Run("条件筛选",     () => new FrmFilter());
-    public void OnSortClick(IRibbonControl control)          => Run("按列排序",     () => new FrmSort());
-    public void OnDeleteClick(IRibbonControl control)        => Run("删除匹配行",   () => new FrmDelete());
-    public void OnCompareClick(IRibbonControl control)       => Run("两表比对",     () => new FrmCompare());
-    public void OnCountDistinctClick(IRibbonControl control) => Run("累计去重计数", () => new FrmCountDistinct());
-    public void OnGroupStatClick(IRibbonControl control)     => Run("分组统计",     () => new FrmGroupStat());
-    public void OnTimeCompareClick(IRibbonControl control)   => Run("差异比对",     () => new FrmTimeCompare());
-    public void OnKeyMatchClick(IRibbonControl control)      => Run("多字段匹配",   () => new FrmKeyMatch());
-    public void OnPermMatrixClick(IRibbonControl control)    => Run("权限矩阵",     () => new FrmPermMatrix());
-    public void OnGetFileNamesClick(IRibbonControl control)  => Run("文件名列表",   () => { FrmGetFileNames.Run(); return null; });
-
-    /// <summary>统一执行包装：捕获异常、展开 InnerException 链、落盘日志、弹窗提示。</summary>
+    /// <summary>Wrap a tool launch: catch, log and show the full exception chain.</summary>
     private static void Run(string toolName, Func<Form?> factory)
     {
         try
         {
-            using Form? frm = factory();
-            frm?.ShowDialog();
+            using Form? form = factory();
+            form?.ShowDialog();
         }
         catch (Exception ex)
         {
             string detail = Flatten(ex);
             WriteLog(toolName, detail);
             MessageBox.Show(
-                $"[{toolName}] 发生错误\n\n{detail}",
-                "Excel 工具 - 错误详情",
+                Loc.T($"[{toolName}] 发生错误\n\n{detail}",
+                      $"[{toolName}] Error\n\n{detail}"),
+                Loc.T("Excel 工具 - 错误详情", "Excel Tools - Error Details"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
     }
 
-    /// <summary>把异常链逐层展开成可读文本（外层包装 → 内层真凶）。</summary>
+    /// <summary>Flatten the exception chain, outermost wrapper first.</summary>
     private static string Flatten(Exception ex)
     {
-        var sb = new StringBuilder();
+        var builder = new StringBuilder();
         int depth = 0;
-        for (Exception? cur = ex; cur is not null; cur = cur.InnerException, depth++)
+        for (Exception? current = ex; current is not null; current = current.InnerException, depth++)
         {
             string pad = new string(' ', depth * 2);
-            sb.Append(pad);
-            sb.AppendLine($"{cur.GetType().Name}: {cur.Message}");
-            if (!string.IsNullOrEmpty(cur.StackTrace))
+            builder.Append(pad).AppendLine($"{current.GetType().Name}: {current.Message}");
+            if (!string.IsNullOrEmpty(current.StackTrace))
             {
-                string top = cur.StackTrace!.Split('\n')[0].Trim();
-                sb.Append(pad).AppendLine("  at " + top);
+                string top = current.StackTrace!.Split('\n')[0].Trim();
+                builder.Append(pad).AppendLine("  at " + top);
             }
         }
-        return sb.ToString();
+        return builder.ToString();
     }
 
-    /// <summary>错误详情落盘，便于脱离 Excel 环境排查。</summary>
     private static void WriteLog(string toolName, string detail)
     {
         try
         {
             string path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "ExcelTools_错误Log.txt");
+                "ExcelTools_ErrorLog.txt");
             File.AppendAllText(
                 path,
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {toolName}\n{detail}" +
@@ -129,7 +151,7 @@ public class RibbonController : ExcelRibbon
         }
         catch
         {
-            // 日志失败不影响主流程
+            // Logging is best-effort and must never mask the original error.
         }
     }
 }

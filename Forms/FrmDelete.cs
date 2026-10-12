@@ -25,21 +25,21 @@ public class FrmDelete : Form
 
     public FrmDelete()
     {
-        Text = "删除匹配行";
+        Text = Loc.T("删除匹配行", "Delete");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "删除「源工作表」中，键值与「基准工作表」重复的行。");
+            Loc.T("删除「源工作表」中，键值与「基准工作表」重复的行。", "Delete rows from the Source Sheet whose key value also exists in the Base Sheet."));
 
-        _txtSourceSheet = layout.AddField("源工作表:", Settings.Get(KeySourceSheet, "Sheet1"));
-        _txtBaseSheet = layout.AddField("基准工作表:", Settings.Get(KeyBaseSheet, "Base"));
-        _txtSourceColumn = layout.AddField("源表匹配列:", Settings.Get(KeySourceColumn, "A"));
-        _txtBaseColumn = layout.AddField("基准表匹配列:", Settings.Get(KeyBaseColumn, "A"));
+        _txtSourceSheet = layout.AddField(Loc.T("源工作表:", "Source Sheet:"), Settings.Get(KeySourceSheet, "Sheet1"));
+        _txtBaseSheet = layout.AddField(Loc.T("基准工作表:", "Base Sheet:"), Settings.Get(KeyBaseSheet, "Base"));
+        _txtSourceColumn = layout.AddField(Loc.T("源表匹配列:", "Source Column:"), Settings.Get(KeySourceColumn, "A"));
+        _txtBaseColumn = layout.AddField(Loc.T("基准表匹配列:", "Base Column:"), Settings.Get(KeyBaseColumn, "A"));
 
-        var buttons = layout.Finish(("删除匹配行", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("删除匹配行", "Delete"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnDelete_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -53,7 +53,7 @@ public class FrmDelete : Form
     private void BtnDelete_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string sourceSheetName = _txtSourceSheet.Text.Trim();
         string baseSheetName = _txtBaseSheet.Text.Trim();
@@ -62,19 +62,19 @@ public class FrmDelete : Form
 
         if (string.IsNullOrEmpty(sourceSheetName) || string.IsNullOrEmpty(baseSheetName))
         {
-            MessageBox.Show("请输入两个工作表名称。", "提示");
+            MessageBox.Show(Loc.T("请输入两个工作表名称。", "Please enter both sheet names."), Loc.T("提示", "Warning"));
             return;
         }
         if (!IsColumnLetter(sourceColumn) || !IsColumnLetter(baseColumn))
         {
-            MessageBox.Show("列必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("列必须是列字母，例如 A 或 AB。", "Columns must be column letters such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
 
         dynamic? sourceSheet = FindSheet(app, sourceSheetName);
         dynamic? baseSheet = FindSheet(app, baseSheetName);
-        if (sourceSheet == null) { MessageBox.Show($"找不到工作表：{sourceSheetName}", "提示"); return; }
-        if (baseSheet == null) { MessageBox.Show($"找不到工作表：{baseSheetName}", "提示"); return; }
+        if (sourceSheet == null) { MessageBox.Show(Loc.T($"找不到工作表：{sourceSheetName}", "Sheet not found: {sourceSheetName}"), Loc.T("提示", "Warning")); return; }
+        if (baseSheet == null) { MessageBox.Show(Loc.T($"找不到工作表：{baseSheetName}", "Sheet not found: {baseSheetName}"), Loc.T("提示", "Warning")); return; }
 
         Settings.SetMany(
             (KeySourceSheet, sourceSheetName),
@@ -84,7 +84,7 @@ public class FrmDelete : Form
 
         MyTools.ClearSpecialSymbols(sourceSheet, out int sourceRows, out int _);
         MyTools.ClearSpecialSymbols(baseSheet, out int baseRows, out int _);
-        if (sourceRows < 2 || baseRows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+        if (sourceRows < 2 || baseRows < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
 
         int sourceColumnIndex = ColumnLetterToIndex(sourceColumn);
         int baseColumnIndex = ColumnLetterToIndex(baseColumn);
@@ -95,7 +95,7 @@ public class FrmDelete : Form
             string value = Convert.ToString(baseSheet.Cells[r, baseColumnIndex].Value)?.Trim() ?? "";
             if (!string.IsNullOrEmpty(value)) baseValues.Add(value);
         }
-        if (baseValues.Count == 0) { MessageBox.Show("基准工作表没有可用数据。", "提示"); return; }
+        if (baseValues.Count == 0) { MessageBox.Show(Loc.T("基准工作表没有可用数据。", "The base sheet has no usable values."), Loc.T("提示", "Warning")); return; }
 
         using var progress = new ProgressForm();
         progress.Show();
@@ -112,7 +112,7 @@ public class FrmDelete : Form
 
             if (r % 500 == 0)
             {
-                progress.SetMessage($"正在删除… {r}/{sourceRows}");
+                progress.SetMessage(Loc.T($"正在删除… {r}/{sourceRows}", "Deleting... {r}/{sourceRows}"));
                 progress.SetProgress((int)((sourceRows - r) * 100.0 / sourceRows));
                 Application.DoEvents();
             }
@@ -121,11 +121,11 @@ public class FrmDelete : Form
         sourceSheet.Columns.AutoFit();
         app.ActiveWorkbook.Save();
         progress.SetProgress(100);
-        progress.SetMessage($"完成。 {deleted} row(s) deleted.");
+        progress.SetMessage(Loc.T($"完成。 {deleted} row(s) deleted.", "Done. {deleted} row(s) deleted."));
         Application.DoEvents();
         System.Threading.Thread.Sleep(600);
 
-        MessageBox.Show($"已完成并保存！ {deleted} row(s) deleted.", "Delete");
+        MessageBox.Show(Loc.T($"已完成并保存！ {deleted} row(s) deleted.", "Finished and saved! {deleted} row(s) deleted."), Loc.T("删除匹配行", "Delete"));
         Close();
     }
 

@@ -28,31 +28,31 @@ public class FrmKeyMatch : Form
 
     public FrmKeyMatch()
     {
-        Text = "多字段匹配";
+        Text = Loc.T("多字段匹配", "Get Key");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "按最多三个字段联合匹配「源文件」与当前工作表，\n匹配成功后把源表的 Key 值写入目标表 Key 列。\n字段格式：源列/目标列，例如 L/L");
+            Loc.T("按最多三个字段联合匹配「源文件」与当前工作表，\n匹配成功后把源表的 Key 值写入目标表 Key 列。\n字段格式：源列/目标列，例如 L/L", "Match the source file against the active sheet on up to three fields,\nthen write the source key into the target key column.\nField format: sourceColumn/targetColumn, e.g. L/L"));
 
-        var (sourceBox, btnOpen) = layout.AddFieldWithButton("源文件:", Settings.Get(KeySourceFile, ""), "打开");
+        var (sourceBox, btnOpen) = layout.AddFieldWithButton(Loc.T("源文件:", "Source File:"), Settings.Get(KeySourceFile, ""), Loc.T("打开", "Open"));
         _txtSourceFile = sourceBox;
 
         btnOpen.Click += (_, _) =>
         {
-            using var dialog = new OpenFileDialog { Filter = "Excel Files|*.xls;*.xlsx;*.xlsm" };
+            using var dialog = new OpenFileDialog { Filter = Loc.T("Excel Files|*.xls;*.xlsx;*.xlsm", "Excel Files|*.xls;*.xlsx;*.xlsm") };
             if (dialog.ShowDialog() == DialogResult.OK) _txtSourceFile.Text = dialog.FileName;
         };
 
-        _txtSourceKeyColumn = layout.AddField("源表Key列:", Settings.Get(KeySourceKeyColumn, "C"));
-        _txtTargetKeyColumn = layout.AddField("目标表Key列:", Settings.Get(KeyTargetKeyColumn, "B"));
-        _txtField1 = layout.AddField("匹配字段1:", Settings.Get(KeyField1, ""));
-        _txtField2 = layout.AddField("匹配字段2:", Settings.Get(KeyField2, ""));
-        _txtField3 = layout.AddField("匹配字段3:", Settings.Get(KeyField3, ""));
+        _txtSourceKeyColumn = layout.AddField(Loc.T("源表Key列:", "Source Key Col:"), Settings.Get(KeySourceKeyColumn, "C"));
+        _txtTargetKeyColumn = layout.AddField(Loc.T("目标表Key列:", "Target Key Col:"), Settings.Get(KeyTargetKeyColumn, "B"));
+        _txtField1 = layout.AddField(Loc.T("匹配字段1:", "Field1 (src/tgt):"), Settings.Get(KeyField1, ""));
+        _txtField2 = layout.AddField(Loc.T("匹配字段2:", "Field2 (src/tgt):"), Settings.Get(KeyField2, ""));
+        _txtField3 = layout.AddField(Loc.T("匹配字段3:", "Field3 (src/tgt):"), Settings.Get(KeyField3, ""));
 
-        var buttons = layout.Finish(("确定", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("确定", "OK"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnOK_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -66,22 +66,22 @@ public class FrmKeyMatch : Form
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string sourceFile = _txtSourceFile.Text.Trim();
         string sourceKeyColumn = _txtSourceKeyColumn.Text.Trim().ToUpperInvariant();
         string targetKeyColumn = _txtTargetKeyColumn.Text.Trim().ToUpperInvariant();
 
-        if (string.IsNullOrEmpty(sourceFile)) { MessageBox.Show("请选择源文件。", "提示"); return; }
-        if (!File.Exists(sourceFile)) { MessageBox.Show($"文件不存在：{sourceFile}", "提示"); return; }
+        if (string.IsNullOrEmpty(sourceFile)) { MessageBox.Show(Loc.T("请选择源文件。", "Please choose the source file."), Loc.T("提示", "Warning")); return; }
+        if (!File.Exists(sourceFile)) { MessageBox.Show(Loc.T($"文件不存在：{sourceFile}", "File not found: {sourceFile}"), Loc.T("提示", "Warning")); return; }
         if (!IsColumnLetter(sourceKeyColumn) || !IsColumnLetter(targetKeyColumn))
         {
-            MessageBox.Show("Key 列必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("Key 列必须是列字母，例如 A 或 AB。", "Key columns must be column letters such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
 
         var fields = ParseFields();
-        if (fields.Count == 0) { MessageBox.Show("请至少输入一个匹配字段。", "提示"); return; }
+        if (fields.Count == 0) { MessageBox.Show(Loc.T("请至少输入一个匹配字段。", "Please enter at least one match field."), Loc.T("提示", "Warning")); return; }
 
         Settings.SetMany(
             (KeySourceFile, sourceFile),
@@ -100,7 +100,7 @@ public class FrmKeyMatch : Form
 
             MyTools.ClearSpecialSymbols(sourceSheet, out int sourceRows, out int _);
             MyTools.ClearSpecialSymbols(targetSheet, out int targetRows, out int _);
-            if (sourceRows < 2 || targetRows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+            if (sourceRows < 2 || targetRows < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
 
             int sourceKeyIndex = ColumnLetterToIndex(sourceKeyColumn);
             int targetKeyIndex = ColumnLetterToIndex(targetKeyColumn);
@@ -151,7 +151,7 @@ public class FrmKeyMatch : Form
 
                 if (i % 500 == 0)
                 {
-                    progress.SetMessage($"正在匹配… {i}/{targetRows}");
+                    progress.SetMessage(Loc.T($"正在匹配… {i}/{targetRows}", "Matching... {i}/{targetRows}"));
                     progress.SetProgress((int)(i * 100.0 / targetRows));
                     Application.DoEvents();
                 }
@@ -159,16 +159,16 @@ public class FrmKeyMatch : Form
 
             app.ActiveWorkbook.Save();
             progress.SetProgress(100);
-            progress.SetMessage($"完成。 {matched} row(s) matched.");
+            progress.SetMessage(Loc.T($"完成。 {matched} row(s) matched.", "Done. {matched} row(s) matched."));
             Application.DoEvents();
             System.Threading.Thread.Sleep(600);
 
-            MessageBox.Show($"已完成并保存！ {matched} row(s) matched.", "Get Key");
+            MessageBox.Show(Loc.T($"已完成并保存！ {matched} row(s) matched.", "Finished and saved! {matched} row(s) matched."), Loc.T("多字段匹配", "Get Key"));
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"匹配失败：{ex.Message}", "错误");
+            MessageBox.Show(Loc.T($"匹配失败：{ex.Message}", "Match failed: {ex.Message}"), Loc.T("错误", "Error"));
         }
         finally
         {

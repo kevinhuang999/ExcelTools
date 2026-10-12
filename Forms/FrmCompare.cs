@@ -20,24 +20,24 @@ public class FrmCompare : Form
 
     public FrmCompare()
     {
-        Text = "两表比对";
+        Text = Loc.T("两表比对", "Compare Files");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "逐格比对两个文件的第一个工作表，差异写入新的 Compare 工作表。");
+            Loc.T("逐格比对两个文件的第一个工作表，差异写入新的 Compare 工作表。", "Compare the first sheet of two files cell by cell.\nDifferences are written to a new Compare sheet."));
 
-        var (file1Box, btnFile1) = layout.AddFieldWithButton("文件1:", Settings.Get(KeyFile1, ""), "选择文件");
-        var (file2Box, btnFile2) = layout.AddFieldWithButton("文件2:", Settings.Get(KeyFile2, ""), "选择文件");
+        var (file1Box, btnFile1) = layout.AddFieldWithButton(Loc.T("文件1:", "File1:"), Settings.Get(KeyFile1, ""), Loc.T("选择文件", "Select File"));
+        var (file2Box, btnFile2) = layout.AddFieldWithButton(Loc.T("文件2:", "File2:"), Settings.Get(KeyFile2, ""), Loc.T("选择文件", "Select File"));
         _txtFile1 = file1Box;
         _txtFile2 = file2Box;
 
         btnFile1.Click += (_, _) => SelectFile(_txtFile1);
         btnFile2.Click += (_, _) => SelectFile(_txtFile2);
 
-        var buttons = layout.Finish(("比对", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("比对", "Compare"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnCompare_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -49,7 +49,7 @@ public class FrmCompare : Form
 
     private void SelectFile(TextBox target)
     {
-        using var dialog = new OpenFileDialog { Filter = "Excel Files|*.xls;*.xlsx;*.xlsm" };
+        using var dialog = new OpenFileDialog { Filter = Loc.T("Excel Files|*.xls;*.xlsx;*.xlsm", "Excel Files|*.xls;*.xlsx;*.xlsm") };
         if (dialog.ShowDialog() == DialogResult.OK)
             target.Text = dialog.FileName;
     }
@@ -57,18 +57,18 @@ public class FrmCompare : Form
     private void BtnCompare_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string file1 = _txtFile1.Text.Trim();
         string file2 = _txtFile2.Text.Trim();
 
         if (string.IsNullOrEmpty(file1) || string.IsNullOrEmpty(file2))
         {
-            MessageBox.Show("请选择两个文件。", "提示");
+            MessageBox.Show(Loc.T("请选择两个文件。", "Please select both files."), Loc.T("提示", "Warning"));
             return;
         }
-        if (!File.Exists(file1)) { MessageBox.Show($"文件不存在：{file1}", "提示"); return; }
-        if (!File.Exists(file2)) { MessageBox.Show($"文件不存在：{file2}", "提示"); return; }
+        if (!File.Exists(file1)) { MessageBox.Show(Loc.T($"文件不存在：{file1}", "File not found: {file1}"), Loc.T("提示", "Warning")); return; }
+        if (!File.Exists(file2)) { MessageBox.Show(Loc.T($"文件不存在：{file2}", "File not found: {file2}"), Loc.T("提示", "Warning")); return; }
 
         Settings.SetMany((KeyFile1, file1), (KeyFile2, file2));
 
@@ -85,7 +85,7 @@ public class FrmCompare : Form
             int maxRows = Math.Max((int)sheet1.UsedRange.Rows.Count, (int)sheet2.UsedRange.Rows.Count);
             int maxCols = Math.Max((int)sheet1.UsedRange.Columns.Count, (int)sheet2.UsedRange.Columns.Count);
 
-            dynamic targetSheet = CreateTargetSheet(app, "Compare");
+            dynamic targetSheet = CreateTargetSheet(app, Loc.T("两表比对", "Compare Files"));
 
             targetSheet.Cells[1, 1] = "Cell";
             targetSheet.Cells[1, 2] = "File1";
@@ -117,7 +117,7 @@ public class FrmCompare : Form
 
                 if (r % 200 == 0)
                 {
-                    progress.SetMessage($"正在比对… {r}/{maxRows}");
+                    progress.SetMessage(Loc.T($"正在比对… {r}/{maxRows}", "Comparing... {r}/{maxRows}"));
                     progress.SetProgress((int)(r * 100.0 / maxRows));
                     Application.DoEvents();
                 }
@@ -126,16 +126,16 @@ public class FrmCompare : Form
             targetSheet.Columns.AutoFit();
             app.ActiveWorkbook.Save();
             progress.SetProgress(100);
-            progress.SetMessage($"完成。 {differences} difference(s).");
+            progress.SetMessage(Loc.T($"完成。 {differences} difference(s).", "Done. {differences} difference(s)."));
             Application.DoEvents();
             System.Threading.Thread.Sleep(600);
 
-            MessageBox.Show($"已完成并保存！ {differences} difference(s).", "Compare");
+            MessageBox.Show(Loc.T($"已完成并保存！ {differences} difference(s).", "Finished and saved! {differences} difference(s)."), Loc.T("两表比对", "Compare Files"));
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"比对失败：{ex.Message}", "错误");
+            MessageBox.Show(Loc.T($"比对失败：{ex.Message}", "Compare failed: {ex.Message}"), Loc.T("错误", "Error"));
         }
         finally
         {

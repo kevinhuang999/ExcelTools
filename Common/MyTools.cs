@@ -120,7 +120,7 @@ internal static class MyTools
             int r = (int)worksheet.UsedRange.Rows.Count;
             var lastRow = worksheet.Range[worksheet.Cells[r + 1, 1], worksheet.Cells[r + 1, 2]];
             lastRow.Merge();
-            lastRow.Value = "总计";
+            lastRow.Value = Loc.T("总计", "Total");
         }
 
         worksheet.Columns.AutoFit();

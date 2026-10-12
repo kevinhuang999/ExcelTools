@@ -22,20 +22,20 @@ public class FrmPermMatrix : Form
 
     public FrmPermMatrix()
     {
-        Text = "权限矩阵";
+        Text = Loc.T("权限矩阵", "Role Menus");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "读取当前工作表的角色/分组/功能，生成「角色 × 功能」权限矩阵，\n有权限的格子标记 *。结果写入新的 PermMatrix 工作表。");
+            Loc.T("读取当前工作表的角色/分组/功能，生成「角色 × 功能」权限矩阵，\n有权限的格子标记 *。结果写入新的 PermMatrix 工作表。", "Read role/group/function rows from the active sheet and build a role x function matrix,\nmarking granted permissions with *. Results go to a new PermMatrix sheet."));
 
-        _txtRoleColumn = layout.AddField("角色列:", Settings.Get(KeyRoleColumn, "A"));
-        _txtGroupColumn = layout.AddField("分组列:", Settings.Get(KeyGroupColumn, "B"));
-        _txtFunctionColumn = layout.AddField("功能列:", Settings.Get(KeyFunctionColumn, "C"));
+        _txtRoleColumn = layout.AddField(Loc.T("角色列:", "Role Column:"), Settings.Get(KeyRoleColumn, "A"));
+        _txtGroupColumn = layout.AddField(Loc.T("分组列:", "Group Column:"), Settings.Get(KeyGroupColumn, "B"));
+        _txtFunctionColumn = layout.AddField(Loc.T("功能列:", "Function Column:"), Settings.Get(KeyFunctionColumn, "C"));
 
-        var buttons = layout.Finish(("确定", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("确定", "OK"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnOK_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -49,7 +49,7 @@ public class FrmPermMatrix : Form
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string roleColumn = _txtRoleColumn.Text.Trim().ToUpperInvariant();
         string groupColumn = _txtGroupColumn.Text.Trim().ToUpperInvariant();
@@ -57,17 +57,17 @@ public class FrmPermMatrix : Form
 
         if (!IsColumnLetter(roleColumn) || !IsColumnLetter(groupColumn) || !IsColumnLetter(functionColumn))
         {
-            MessageBox.Show("列必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("列必须是列字母，例如 A 或 AB。", "Columns must be column letters such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int _))
         {
-            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(Loc.T("空表，或无法清理特殊符号！", "Empty table, or unable to clean up special symbols!"), Loc.T("提示", "Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+        if (rows < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
 
         int roleIndex = ColumnLetterToIndex(roleColumn);
         int groupIndex = ColumnLetterToIndex(groupColumn);
@@ -100,13 +100,13 @@ public class FrmPermMatrix : Form
 
         if (roles.Count == 0 || functions.Count == 0)
         {
-            MessageBox.Show("未找到有效数据。", "提示");
+            MessageBox.Show(Loc.T("未找到有效数据。", "No usable data found."), Loc.T("提示", "Warning"));
             return;
         }
 
         dynamic targetSheet = CreateTargetSheet(app, "PermMatrix");
 
-        targetSheet.Cells[1, 1] = "序号";
+        targetSheet.Cells[1, 1] = Loc.T("序号", "No.");
         targetSheet.Cells[1, 2] = "Group";
         targetSheet.Cells[1, 3] = "Function";
         for (int c = 0; c < roles.Count; c++)
@@ -134,7 +134,10 @@ public class FrmPermMatrix : Form
         targetSheet.Columns.AutoFit();
         app.ActiveWorkbook.Save();
 
-        MessageBox.Show($"已完成并保存！ {roles.Count} role(s), {functions.Count} function(s).", "RoleMenus");
+        MessageBox.Show(
+            Loc.T($"已完成并保存！{roles.Count} 个角色、{functions.Count} 个功能。",
+                  $"Finished and saved! {roles.Count} role(s), {functions.Count} function(s)."),
+            Loc.T("权限矩阵", "Role Menus"));
         Close();
     }
 

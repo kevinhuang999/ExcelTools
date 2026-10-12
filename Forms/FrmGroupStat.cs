@@ -22,20 +22,20 @@ public class FrmGroupStat : Form
 
     public FrmGroupStat()
     {
-        Text = "分组统计";
+        Text = Loc.T("分组统计", "Statistics");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "按分类列分组、按期间列拆分，统计每组在每个期间的记录数，\n生成「分类 × 期间」交叉汇总表。");
+            Loc.T("按分类列分组、按期间列拆分，统计每组在每个期间的记录数，\n生成「分类 × 期间」交叉汇总表。", "Group by the category column, split by the period column,\nand build a category x period cross table."));
 
-        _txtGroupColumn = layout.AddField("分类列:", Settings.Get(KeyGroupColumn, "A"));
-        _txtPeriodColumn = layout.AddField("期间列:", Settings.Get(KeyPeriodColumn, "B"));
-        _txtTargetSheet = layout.AddField("输出工作表:", Settings.Get(KeyTargetSheet, "Statistics"));
+        _txtGroupColumn = layout.AddField(Loc.T("分类列:", "Category Column:"), Settings.Get(KeyGroupColumn, "A"));
+        _txtPeriodColumn = layout.AddField(Loc.T("期间列:", "Period Column:"), Settings.Get(KeyPeriodColumn, "B"));
+        _txtTargetSheet = layout.AddField(Loc.T("输出工作表:", "Output Sheet:"), Settings.Get(KeyTargetSheet, Loc.T("分组统计", "Statistics")));
 
-        var buttons = layout.Finish(("统计", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("统计", "Sum"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnStatistics_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -48,7 +48,7 @@ public class FrmGroupStat : Form
     private void BtnStatistics_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string groupColumn = _txtGroupColumn.Text.Trim().ToUpperInvariant();
         string periodColumn = _txtPeriodColumn.Text.Trim().ToUpperInvariant();
@@ -56,22 +56,22 @@ public class FrmGroupStat : Form
 
         if (!IsColumnLetter(groupColumn) || !IsColumnLetter(periodColumn))
         {
-            MessageBox.Show("列必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("列必须是列字母，例如 A 或 AB。", "Columns must be column letters such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
         if (string.IsNullOrEmpty(targetSheetName))
         {
-            MessageBox.Show("请输入输出工作表名称。", "提示");
+            MessageBox.Show(Loc.T("请输入输出工作表名称。", "Please enter an output sheet name."), Loc.T("提示", "Warning"));
             return;
         }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int _))
         {
-            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(Loc.T("空表，或无法清理特殊符号！", "Empty table, or unable to clean up special symbols!"), Loc.T("提示", "Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+        if (rows < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
         app.ActiveWorkbook.Save();
 
         Settings.SetMany(
@@ -109,7 +109,7 @@ public class FrmGroupStat : Form
 
             if (r % 500 == 0)
             {
-                progress.SetMessage($"正在读取… {r}/{rows}");
+                progress.SetMessage(Loc.T($"正在读取… {r}/{rows}", "Reading... {r}/{rows}"));
                 progress.SetProgress((int)(r * 50.0 / rows));
                 Application.DoEvents();
             }
@@ -117,7 +117,7 @@ public class FrmGroupStat : Form
 
         if (groups.Count == 0)
         {
-            MessageBox.Show("未找到有效的分类数据。", "提示");
+            MessageBox.Show(Loc.T("未找到有效的分类数据。", "No usable category values found."), Loc.T("提示", "Warning"));
             return;
         }
 
@@ -161,12 +161,12 @@ public class FrmGroupStat : Form
 
         targetSheet.Columns.AutoFit();
         progress.SetProgress(100);
-        progress.SetMessage("完成。");
+        progress.SetMessage(Loc.T("完成。", "Done."));
         app.ActiveWorkbook.Save();
 
         Close();
 
-        if (DialogResult.Yes == MessageBox.Show("已完成并保存，现在关闭吗？", "确认", MessageBoxButtons.YesNo))
+        if (DialogResult.Yes == MessageBox.Show(Loc.T("已完成并保存，现在关闭吗？", "Finished and saved! Close now?"), Loc.T("确认", "Question"), MessageBoxButtons.YesNo))
         {
             app.Quit();
         }

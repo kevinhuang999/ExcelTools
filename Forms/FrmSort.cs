@@ -20,19 +20,19 @@ public class FrmSort : Form
 
     public FrmSort()
     {
-        Text = "按列排序";
+        Text = Loc.T("按列排序", "Sort");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "按指定列对当前工作表排序。\n排序前会把原始数据整表备份到 Original 工作表。");
+            Loc.T("按指定列对当前工作表排序。\n排序前会把原始数据整表备份到 Original 工作表。", "Sort the active sheet by a column.\nThe whole original data set is backed up to an Original sheet first."));
 
-        _txtSortColumn1 = layout.AddField("排序列:", Settings.Get(KeyCol1, "A"));
-        _txtSortColumn2 = layout.AddField("次要排序列:", Settings.Get(KeyCol2, ""));
+        _txtSortColumn1 = layout.AddField(Loc.T("排序列:", "Sort Column:"), Settings.Get(KeyCol1, "A"));
+        _txtSortColumn2 = layout.AddField(Loc.T("次要排序列:", "Then By:"), Settings.Get(KeyCol2, ""));
 
-        var buttons = layout.Finish(("排序", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("排序", "Sort"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnSort_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -45,29 +45,29 @@ public class FrmSort : Form
     private void BtnSort_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string column1 = _txtSortColumn1.Text.Trim().ToUpperInvariant();
         string column2 = _txtSortColumn2.Text.Trim().ToUpperInvariant();
 
         if (!IsColumnLetter(column1))
         {
-            MessageBox.Show("排序列必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("排序列必须是列字母，例如 A 或 AB。", "Sort Column must be a column letter such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
         if (!string.IsNullOrEmpty(column2) && !IsColumnLetter(column2))
         {
-            MessageBox.Show("次要排序列必须是列字母，或留空。", "提示");
+            MessageBox.Show(Loc.T("次要排序列必须是列字母，或留空。", "Then By must be a column letter, or left empty."), Loc.T("提示", "Warning"));
             return;
         }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(Loc.T("空表，或无法清理特殊符号！", "Empty table, or unable to clean up special symbols!"), Loc.T("提示", "Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("数据不足，无法排序。", "提示"); return; }
+        if (rows < 2) { MessageBox.Show(Loc.T("数据不足，无法排序。", "Not enough data to sort."), Loc.T("提示", "Warning")); return; }
 
         Settings.SetMany((KeyCol1, column1), (KeyCol2, column2));
 
@@ -112,7 +112,7 @@ public class FrmSort : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"排序失败： {ex.Message}", "错误");
+            MessageBox.Show(Loc.T($"排序失败： {ex.Message}", "Sort failed: {ex.Message}"), Loc.T("错误", "Error"));
             return;
         }
 
@@ -120,7 +120,7 @@ public class FrmSort : Form
         ws.Columns.AutoFit();
         app.ActiveWorkbook.Save();
 
-        MessageBox.Show("已完成并保存！", "排序");
+        MessageBox.Show(Loc.T("已完成并保存！", "Finished and saved!"), Loc.T("排序", "Sort"));
         Close();
     }
 

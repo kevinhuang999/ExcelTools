@@ -21,20 +21,20 @@ public class FrmFilter : Form
 
     public FrmFilter()
     {
-        Text = "条件筛选";
+        Text = Loc.T("条件筛选", "Filter");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "把符合条件的行复制到新的 Filtered 工作表。\n每行写一个条件，格式：列字母 + 空格 + 值，例如  A 1001");
+            Loc.T("把符合条件的行复制到新的 Filtered 工作表。\n每行写一个条件，格式：列字母 + 空格 + 值，例如  A 1001", "Copy matching rows into a new Filtered sheet.\nOne condition per line: column letter then value, e.g.  A 1001"));
 
-        _rtbConditions = layout.AddMultilineField("筛选条件:", 110);
-        _txtColumn = layout.AddField("关键列:", Settings.Get(KeyColumn, "A"));
-        _txtHeaderRow = layout.AddField("表头行号:", Settings.Get(KeyHeaderRow, "1"));
+        _rtbConditions = layout.AddMultilineField(Loc.T("筛选条件:", "Filter Fields:"), 110);
+        _txtColumn = layout.AddField(Loc.T("关键列:", "Column:"), Settings.Get(KeyColumn, "A"));
+        _txtHeaderRow = layout.AddField(Loc.T("表头行号:", "HeaderRowNo:"), Settings.Get(KeyHeaderRow, "1"));
 
-        var buttons = layout.Finish(("筛选", true), ("SQL 查询", false), ("取消", false));
+        var buttons = layout.Finish((Loc.T("筛选", "Filter"), true), (Loc.T("SQL 查询", "SQL"), false), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnOK_Click;
         buttons[1].Click += BtnSQL_Click;
         buttons[2].Click += (_, _) => Close();
@@ -48,18 +48,18 @@ public class FrmFilter : Form
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(Loc.T("空表，或无法清理特殊符号！", "Empty table, or unable to clean up special symbols!"), Loc.T("提示", "Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+        if (rows < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
 
         var conditions = ParseConditions(_rtbConditions.Text);
-        if (conditions.Count == 0) { MessageBox.Show("请至少输入一个筛选条件。", "提示"); return; }
+        if (conditions.Count == 0) { MessageBox.Show(Loc.T("请至少输入一个筛选条件。", "Please enter at least one filter condition."), Loc.T("提示", "Warning")); return; }
 
         int headerRow = ParseHeaderRow();
 
@@ -96,7 +96,7 @@ public class FrmFilter : Form
 
             if (r % 500 == 0)
             {
-                progress.SetMessage($"正在筛选… {r}/{rows}");
+                progress.SetMessage(Loc.T($"正在筛选… {r}/{rows}", "Filtering... {r}/{rows}"));
                 progress.SetProgress((int)(r * 100.0 / rows));
                 Application.DoEvents();
             }
@@ -105,31 +105,31 @@ public class FrmFilter : Form
         targetSheet.Columns.AutoFit();
         app.ActiveWorkbook.Save();
         progress.SetProgress(100);
-        progress.SetMessage($"完成。 {matched} row(s) matched.");
+        progress.SetMessage(Loc.T($"完成。 {matched} row(s) matched.", "Done. {matched} row(s) matched."));
         Application.DoEvents();
         System.Threading.Thread.Sleep(600);
 
-        MessageBox.Show($"已完成并保存！ {matched} row(s) matched.", "Filter");
+        MessageBox.Show(Loc.T($"已完成并保存！ {matched} row(s) matched.", "Finished and saved! {matched} row(s) matched."), Loc.T("条件筛选", "Filter"));
         Close();
     }
 
     private void BtnSQL_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         dynamic ws = app.ActiveSheet;
         if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int cols))
         {
-            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(Loc.T("空表，或无法清理特殊符号！", "Empty table, or unable to clean up special symbols!"), Loc.T("提示", "Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (rows < 2) { MessageBox.Show("数据不足。", "提示"); return; }
+        if (rows < 2) { MessageBox.Show(Loc.T("数据不足。", "Not enough data."), Loc.T("提示", "Warning")); return; }
 
         string keyColumn = _txtColumn.Text.Trim().ToUpperInvariant();
         if (!IsColumnLetter(keyColumn))
         {
-            MessageBox.Show("Column must be a column letter such as A or AB.", "提示");
+            MessageBox.Show(Loc.T("列必须是列字母，例如 A 或 AB。", "Column must be a column letter such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
 
@@ -146,12 +146,12 @@ public class FrmFilter : Form
             targetSheet.Columns.AutoFit();
             app.ActiveWorkbook.Save();
 
-            MessageBox.Show("已完成并保存！", "Filter");
+            MessageBox.Show(Loc.T("已完成并保存！", "Finished and saved!"), Loc.T("条件筛选", "Filter"));
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"SQL 筛选失败：{ex.Message}", "错误");
+            MessageBox.Show(Loc.T($"SQL 筛选失败：{ex.Message}", "SQL filter failed: {ex.Message}"), Loc.T("错误", "Error"));
         }
     }
 

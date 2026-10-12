@@ -18,18 +18,18 @@ public class FrmSeperate : Form
 
     public FrmSeperate()
     {
-        Text = "拆分工作表";
+        Text = Loc.T("拆分工作表", "Seperate");
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
 
         var layout = new FormLayout(this,
-            "按指定列的值，把当前工作表拆成多个工作表：\n每一个不同的值生成一张新表，表名即该值。");
+            Loc.T("按指定列的值，把当前工作表拆成多个工作表：\n每一个不同的值生成一张新表，表名即该值。", "Split the active sheet into several sheets:\none sheet per distinct value, named after that value."));
 
-        _txtColumnHeader = layout.AddField("列标题:", Settings.Get(SettingsKey, "A"));
+        _txtColumnHeader = layout.AddField(Loc.T("列标题:", "Column Header:"), Settings.Get(SettingsKey, "A"));
 
-        var buttons = layout.Finish(("拆分", true), ("取消", false));
+        var buttons = layout.Finish((Loc.T("拆分", "Seperate"), true), (Loc.T("取消", "Cancel"), false));
         buttons[0].Click += BtnSeperate_Click;
         buttons[1].Click += (_, _) => Close();
 
@@ -43,17 +43,17 @@ public class FrmSeperate : Form
     private void BtnSeperate_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。", "提示"); return; }
+        if (app == null) { MessageBox.Show(Loc.T("无法获取 Excel 对象。", "Unable to access Excel."), Loc.T("提示", "Warning")); return; }
 
         string column = _txtColumnHeader.Text.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(column))
         {
-            MessageBox.Show("请输入列标题！", "提示");
+            MessageBox.Show(Loc.T("请输入列标题！", "Please enter the Column Header!"), Loc.T("提示", "Warning"));
             return;
         }
         if (!System.Text.RegularExpressions.Regex.IsMatch(column, "^[A-Z]{1,3}$"))
         {
-            MessageBox.Show("列标题必须是列字母，例如 A 或 AB。", "提示");
+            MessageBox.Show(Loc.T("列标题必须是列字母，例如 A 或 AB。", "The Column Header must be a column letter such as A or AB."), Loc.T("提示", "Warning"));
             return;
         }
 
@@ -61,7 +61,7 @@ public class FrmSeperate : Form
 
         if (string.IsNullOrEmpty(Convert.ToString(mainSheet.Cells[1, column].Value)))
         {
-            MessageBox.Show("表头不能为空！", "提示");
+            MessageBox.Show(Loc.T("表头不能为空！", "The header should not be empty!"), Loc.T("提示", "Warning"));
             return;
         }
 
@@ -69,7 +69,7 @@ public class FrmSeperate : Form
 
         if (!MyTools.ClearSpecialSymbols(mainSheet, out int rowsCount, out int colsCount))
         {
-            MessageBox.Show("空表，或无法清理特殊符号！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(Loc.T("空表，或无法清理特殊符号！", "Empty table, or unable to clean up special symbols!"), Loc.T("提示", "Warning"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         app.ActiveWorkbook.Save();
@@ -77,12 +77,12 @@ public class FrmSeperate : Form
         List<string>? listByField = MyTools.GetByField(app, column);
         if (listByField == null)
         {
-            MessageBox.Show("未找到有效数据！", "提示");
+            MessageBox.Show(Loc.T("未找到有效数据！", "No usable data found!"), Loc.T("提示", "Warning"));
             return;
         }
         if (!MyTools.IsSheetNameValid(listByField))
         {
-            MessageBox.Show("存在不符合工作表命名规则的字符！", "提示");
+            MessageBox.Show(Loc.T("存在不符合工作表命名规则的字符！", "Contains strings that do not conform to the worksheet naming rules!"), Loc.T("提示", "Warning"));
             return;
         }
 
@@ -95,7 +95,7 @@ public class FrmSeperate : Form
         foreach (string item in listByField)
         {
             index++;
-            progress.SetMessage($"正在拆分：{item}  ({index}/{listByField.Count})");
+            progress.SetMessage(Loc.T($"正在拆分：{item}  ({index}/{listByField.Count})", "Seperating: {item}  ({index}/{listByField.Count})"));
             progress.SetProgress((int)(index * 100.0 / listByField.Count));
             Application.DoEvents();
 
@@ -117,12 +117,12 @@ public class FrmSeperate : Form
         }
 
         progress.SetProgress(100);
-        progress.SetMessage("完成。");
+        progress.SetMessage(Loc.T("完成。", "Done."));
         app.ActiveWorkbook.Save();
 
         Close();
 
-        if (DialogResult.Yes == MessageBox.Show("已完成并保存，现在关闭吗？", "确认", MessageBoxButtons.YesNo))
+        if (DialogResult.Yes == MessageBox.Show(Loc.T("已完成并保存，现在关闭吗？", "Finished and saved! Close now?"), Loc.T("确认", "Question"), MessageBoxButtons.YesNo))
         {
             app.Quit();
         }

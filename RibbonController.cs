@@ -26,7 +26,7 @@ public class RibbonController : ExcelRibbon
     <tabs>
       <tab id='ExcelToolsTab' label='Excel 工具'>
         <group id='grpData' label='数据处理'>
-          <button id='btnSeperate' label='拆分工作表' size='large' imageMso='Split'
+          <button id='btnSeperate' label='拆分工作表' size='large' imageMso='FillAcrossWorksheets'
                   onAction='OnSeperateClick' screentip='按某列值将总表拆成多个工作表'/>
           <button id='btnFilter' label='条件筛选' size='large' imageMso='Filter'
                   onAction='OnFilterClick' screentip='按多条件筛选数据到新表'/>
@@ -36,23 +36,23 @@ public class RibbonController : ExcelRibbon
                   onAction='OnDeleteClick' screentip='删除与另一表匹配的行'/>
         </group>
         <group id='grpCompare' label='比对'>
-          <button id='btnCompare' label='两表比对' size='large' imageMso='CompareAndMerge'
+          <button id='btnCompare' label='两表比对' size='large' imageMso='CompareAndMergeWorkbooks'
                   onAction='OnCompareClick' screentip='比较两个工作表的数据差异'/>
-          <button id='btnTimeCompare' label='差异比对' size='large' imageMso='Filter'
+          <button id='btnTimeCompare' label='差异比对' size='large' imageMso='FindDialogExcel'
                   onAction='OnTimeCompareClick' screentip='按匹配列联表找比对列不一致的行'/>
-          <button id='btnCountDistinct' label='累计去重计数' size='large' imageMso='CountNumber'
+          <button id='btnCountDistinct' label='累计去重计数' size='large' imageMso='AutoSumCount'
                   onAction='OnCountDistinctClick' screentip='截至每行统计某列累计不重复值数'/>
         </group>
         <group id='grpStat' label='统计'>
-          <button id='btnGroupStat' label='分组统计' size='large' imageMso='PivotTable'
+          <button id='btnGroupStat' label='分组统计' size='large' imageMso='PivotTableInsert'
                   onAction='OnGroupStatClick' screentip='按分类字段生成交叉汇总表'/>
-          <button id='btnPermMatrix' label='权限矩阵' size='large' imageMso='InsertFunction'
+          <button id='btnPermMatrix' label='权限矩阵' size='large' imageMso='CreateTable'
                   onAction='OnPermMatrixClick' screentip='从数据生成角色×功能权限矩阵'/>
           <button id='btnGetFileNames' label='文件名列表' size='large' imageMso='FileNew'
                   onAction='OnGetFileNamesClick' screentip='递归提取目录下所有文件名到当前表'/>
         </group>
         <group id='grpMatch' label='匹配'>
-          <button id='btnKeyMatch' label='多字段匹配' size='large' imageMso='LookupWizard'
+          <button id='btnKeyMatch' label='多字段匹配' size='large' imageMso='LookUp'
                   onAction='OnKeyMatchClick' screentip='按多字段联合匹配两表提取Key值'/>
         </group>
       </tab>

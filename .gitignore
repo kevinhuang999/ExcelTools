@@ -4,3 +4,5 @@ obj/
 *.suo
 .vs/
 _diag_*.txt
+# Forms are implemented in pure code (no Designer); VS may leave empty .resx behind
+Forms/*.resx

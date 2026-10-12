@@ -4,241 +4,216 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// 权限矩阵生成器：从数据表生成角色×功能模块权限矩阵，用★标记。
+/// Permission matrix: read role / group / function rows from the active sheet
+/// and emit a role-by-function matrix marked with a star.
+///
+/// Step flow matches the original add-in: open, press OK. All columns are
+/// pre-filled from the last run.
 /// </summary>
 public class FrmPermMatrix : Form
 {
-    private readonly TextBox _txtRoleCol;
-    private readonly TextBox _txtGroupCol;
-    private readonly TextBox _txtFuncCol;
+    private const string KeyRoleColumn = "perm.roleColumn";
+    private const string KeyGroupColumn = "perm.groupColumn";
+    private const string KeyFunctionColumn = "perm.functionColumn";
+
+    private readonly TextBox _txtRoleColumn;
+    private readonly TextBox _txtGroupColumn;
+    private readonly TextBox _txtFunctionColumn;
 
     public FrmPermMatrix()
     {
-        this.Text = "权限矩阵生成";
-        this.Size = new Size(440, 210);
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.MaximizeBox = false;
-        this.MinimizeBox = false;
+        Text = "RoleMenus";
+        Size = new Size(360, 200);
+        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
 
-        var lblRole = new Label { Text = "角色列（字母）：", Location = new Point(15, 20), AutoSize = true };
-        _txtRoleCol = new TextBox { Location = new Point(130, 18), Width = 60, Text = "B" };
+        _txtRoleColumn = AddRow("Role Column:", 20, Settings.Get(KeyRoleColumn, "A"));
+        _txtGroupColumn = AddRow("Group Column:", 50, Settings.Get(KeyGroupColumn, "B"));
+        _txtFunctionColumn = AddRow("Function Column:", 80, Settings.Get(KeyFunctionColumn, "C"));
 
-        var lblGroup = new Label { Text = "分组列（字母）：", Location = new Point(15, 55), AutoSize = true };
-        _txtGroupCol = new TextBox { Location = new Point(130, 53), Width = 60, Text = "D" };
-
-        var lblFunc = new Label { Text = "功能列（字母）：", Location = new Point(15, 90), AutoSize = true };
-        _txtFuncCol = new TextBox { Location = new Point(130, 88), Width = 60, Text = "E" };
-
-        var lblHint = new Label
-        {
-            Text = "说明：从当前活动工作表读取角色/分组/功能数据，\n生成权限矩阵到新工作表，有权限标记★。\n角色列和分组列支持合并单元格。",
-            Location = new Point(15, 120), Size = new Size(400, 40), ForeColor = System.Drawing.Color.Gray
-        };
-
-        var btnOK = new Button { Text = "生成矩阵", Location = new Point(220, 165), Size = new Size(100, 30) };
+        var btnOK = new Button { Text = "&OK", Location = new Point(160, 125), Size = new Size(85, 28) };
         btnOK.Click += BtnOK_Click;
 
-        this.Controls.Add(lblRole); this.Controls.Add(_txtRoleCol);
-        this.Controls.Add(lblGroup); this.Controls.Add(_txtGroupCol);
-        this.Controls.Add(lblFunc); this.Controls.Add(_txtFuncCol);
-        this.Controls.Add(lblHint);
-        this.Controls.Add(btnOK);
+        var btnCancel = new Button { Text = "&Cancel", Location = new Point(255, 125), Size = new Size(85, 28) };
+        btnCancel.Click += (_, _) => Close();
+
+        Controls.Add(btnOK);
+        Controls.Add(btnCancel);
+
+        AcceptButton = btnOK;
+        UiTheme.Apply(this, "Builds a role-by-function permission matrix from the active\nsheet, marking granted permissions with *.");
+        CancelButton = btnCancel;
+    }
+
+    private TextBox AddRow(string label, int top, string initial)
+    {
+        Controls.Add(new Label { Text = label, Location = new Point(15, top + 3), AutoSize = true });
+        var box = new TextBox { Location = new Point(140, top), Width = 70, Text = initial };
+        Controls.Add(box);
+        return box;
     }
 
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
-        string roleCol = _txtRoleCol.Text.Trim().ToUpper();
-        string groupCol = _txtGroupCol.Text.Trim().ToUpper();
-        string funcCol = _txtFuncCol.Text.Trim().ToUpper();
+        string roleColumn = _txtRoleColumn.Text.Trim().ToUpperInvariant();
+        string groupColumn = _txtGroupColumn.Text.Trim().ToUpperInvariant();
+        string functionColumn = _txtFunctionColumn.Text.Trim().ToUpperInvariant();
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(roleCol, "^[A-Z]{1,3}$") ||
-            !System.Text.RegularExpressions.Regex.IsMatch(groupCol, "^[A-Z]{1,3}$") ||
-            !System.Text.RegularExpressions.Regex.IsMatch(funcCol, "^[A-Z]{1,3}$"))
-        { MessageBox.Show("列字母格式不正确。"); return; }
-
-        dynamic ws = app.ActiveSheet;
-        MyTools.ClearSpecialSymbols(ws, out int rows, out int _);
-        if (rows < 2) { MessageBox.Show("数据不足。"); return; }
-
-        int roleIdx = ColumnLetterToIndex(roleCol);
-        int groupIdx = ColumnLetterToIndex(groupCol);
-        int funcIdx = ColumnLetterToIndex(funcCol);
-        if (roleIdx <= 0 || groupIdx <= 0 || funcIdx <= 0) return;
-
-        // Collect roles, groups, functions and permissions
-        var roleNames = new List<string>();
-        var funcKeys = new List<string>(); // "group|func"
-        var permissionSet = new HashSet<string>(); // "role|group|func"
-
-        for (int i = 2; i <= rows; i++)
+        if (!IsColumnLetter(roleColumn) || !IsColumnLetter(groupColumn) || !IsColumnLetter(functionColumn))
         {
-            string roleName = Normalize(GetCellValue(ws, i, roleIdx));
-            string group = Normalize(GetCellValue(ws, i, groupIdx));
-            string func = Normalize(GetCellValue(ws, i, funcIdx));
-
-            if (string.IsNullOrEmpty(roleName) || string.IsNullOrEmpty(func)) continue;
-
-            if (!roleNames.Contains(roleName))
-                roleNames.Add(roleName);
-
-            string menuKey = group + "|" + func;
-            if (!funcKeys.Contains(menuKey))
-                funcKeys.Add(menuKey);
-
-            string permKey = $"{roleName}|{group}|{func}";
-            permissionSet.Add(permKey);
-        }
-
-        if (roleNames.Count == 0 || funcKeys.Count == 0)
-        {
-            MessageBox.Show("未找到有效数据。");
+            MessageBox.Show("Columns must be column letters such as A or AB.", "Warning");
             return;
         }
 
-        // Create target sheet
-        string tgtName = "PermMatrix";
-        dynamic tgtWs = null;
-        foreach (dynamic w in app.Worksheets)
+        dynamic ws = app.ActiveSheet;
+        if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int _))
         {
-            if (string.Equals(w.Name?.ToString().Trim(), tgtName, StringComparison.OrdinalIgnoreCase))
-            { tgtWs = w; w.UsedRange.Clear(); break; }
+            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
         }
-        if (tgtWs == null)
+        if (rows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
+
+        int roleIndex = ColumnLetterToIndex(roleColumn);
+        int groupIndex = ColumnLetterToIndex(groupColumn);
+        int functionIndex = ColumnLetterToIndex(functionColumn);
+
+        Settings.SetMany(
+            (KeyRoleColumn, roleColumn),
+            (KeyGroupColumn, groupColumn),
+            (KeyFunctionColumn, functionColumn));
+
+        var roles = new List<string>();
+        var functions = new List<string>();
+        var permissions = new HashSet<string>();
+
+        for (int i = 2; i <= rows; i++)
         {
-            tgtWs = app.Worksheets.Add(After: ws);
-            tgtWs.Name = tgtName;
+            string role = Normalize(GetCellValue(ws, i, roleIndex));
+            string group = Normalize(GetCellValue(ws, i, groupIndex));
+            string function = Normalize(GetCellValue(ws, i, functionIndex));
+
+            if (string.IsNullOrEmpty(role) || string.IsNullOrEmpty(function)) continue;
+
+            if (!roles.Contains(role)) roles.Add(role);
+
+            string functionKey = group + "|" + function;
+            if (!functions.Contains(functionKey)) functions.Add(functionKey);
+
+            permissions.Add($"{role}|{group}|{function}");
         }
 
-        // Write headers
-        tgtWs.Cells[1, 1] = "序号";
-        tgtWs.Cells[1, 2] = "分组";
-        tgtWs.Cells[1, 3] = "功能模块";
-        for (int c = 0; c < roleNames.Count; c++)
+        if (roles.Count == 0 || functions.Count == 0)
         {
-            tgtWs.Cells[1, c + 4] = roleNames[c];
+            MessageBox.Show("No usable data found.", "Warning");
+            return;
         }
 
-        // Write data rows
-        for (int r = 0; r < funcKeys.Count; r++)
+        dynamic targetSheet = CreateTargetSheet(app, "PermMatrix");
+
+        targetSheet.Cells[1, 1] = "No.";
+        targetSheet.Cells[1, 2] = "Group";
+        targetSheet.Cells[1, 3] = "Function";
+        for (int c = 0; c < roles.Count; c++)
+            targetSheet.Cells[1, c + 4] = roles[c];
+
+        for (int r = 0; r < functions.Count; r++)
         {
-            int rowIdx = r + 2;
-            var parts = funcKeys[r].Split(new[] { '|' }, 2);
+            int rowIndex = r + 2;
+            string[] parts = functions[r].Split(new[] { '|' }, 2);
             string group = parts.Length > 0 ? parts[0] : "";
-            string func = parts.Length > 1 ? parts[1] : "";
+            string function = parts.Length > 1 ? parts[1] : "";
 
-            tgtWs.Cells[rowIdx, 1] = r + 1;
-            tgtWs.Cells[rowIdx, 2] = group;
-            tgtWs.Cells[rowIdx, 3] = func;
+            targetSheet.Cells[rowIndex, 1] = r + 1;
+            targetSheet.Cells[rowIndex, 2] = group;
+            targetSheet.Cells[rowIndex, 3] = function;
 
-            // Mark permissions with ★
-            for (int c = 0; c < roleNames.Count; c++)
+            for (int c = 0; c < roles.Count; c++)
             {
-                string key = $"{roleNames[c]}|{group}|{func}";
-                if (permissionSet.Contains(key))
-                    tgtWs.Cells[rowIdx, c + 4] = "★";
+                if (permissions.Contains($"{roles[c]}|{group}|{function}"))
+                    targetSheet.Cells[rowIndex, c + 4] = "*";
             }
         }
 
-        // Format: header bold + gray, borders
-        FormatMatrix(tgtWs, app, rows, roleNames.Count);
+        FormatMatrix(targetSheet, app, roles.Count);
+        targetSheet.Columns.AutoFit();
+        app.ActiveWorkbook.Save();
 
-        tgtWs.Columns.AutoFit();
-        MessageBox.Show($"权限矩阵生成完成！{roleNames.Count} 个角色，{funcKeys.Count} 个功能模块。");
+        MessageBox.Show($"Finished and Saved! {roles.Count} role(s), {functions.Count} function(s).", "RoleMenus");
+        Close();
     }
 
-    private string GetCellValue(dynamic ws, int row, int col)
+    private string GetCellValue(dynamic ws, int row, int column)
     {
-        try
-        {
-            return Convert.ToString(ws.Cells[row, col].Value)?.Trim() ?? "";
-        }
+        try { return Convert.ToString(ws.Cells[row, column].Value)?.Trim() ?? ""; }
         catch { return ""; }
     }
 
-    private string Normalize(string s)
+    private static string Normalize(string value)
     {
-        if (string.IsNullOrWhiteSpace(s)) return "";
-        return System.Text.RegularExpressions.Regex.Replace(s.Trim(), @"\s+", " ");
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        return System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"\s+", " ");
     }
 
-    private void FormatMatrix(dynamic ws, dynamic app, int dataRows, int roleCount)
+    private void FormatMatrix(dynamic ws, dynamic app, int roleCount)
     {
         try
         {
-            int lastCol = 3 + roleCount;
-            var used = ws.UsedRange;
+            int lastColumn = 3 + roleCount;
+            dynamic used = ws.UsedRange;
             int startRow = (int)used.Row;
-            int startCol = (int)used.Column;
+            int startColumn = (int)used.Column;
             int endRow = startRow + (int)used.Rows.Count - 1;
-            int endCol = startCol + (int)used.Columns.Count - 1;
+            int endColumn = startColumn + (int)used.Columns.Count - 1;
 
-            // Header style
-            var headerRange = ws.Range[ws.Cells[startRow, startCol], ws.Cells[startRow, endCol]];
+            dynamic headerRange = ws.Range[ws.Cells[startRow, startColumn], ws.Cells[startRow, endColumn]];
             headerRange.Font.Bold = true;
             headerRange.HorizontalAlignment = -4108; // xlCenter
             headerRange.VerticalAlignment = -4108;
 
-            // Full range
-            var fullRange = ws.Range[ws.Cells[startRow, startCol], ws.Cells[endRow, endCol]];
+            dynamic fullRange = ws.Range[ws.Cells[startRow, startColumn], ws.Cells[endRow, endColumn]];
             fullRange.VerticalAlignment = -4108;
             fullRange.HorizontalAlignment = -4131; // xlLeft
 
-            // Column widths
             ws.Columns[1].ColumnWidth = 6;
             ws.Columns[2].ColumnWidth = 20;
             ws.Columns[3].ColumnWidth = 30;
-            for (int c = 4; c <= lastCol; c++)
+            for (int c = 4; c <= lastColumn; c++)
                 ws.Columns[c].ColumnWidth = 15;
-
-            // Merge contiguous same-group cells
-            string lastGroup = null;
-            int mergeStart = -1;
-            for (int r = startRow + 1; r <= endRow; r++)
-            {
-                string grp = GetCellValue(ws, r, 2);
-                if (string.IsNullOrEmpty(grp) && lastGroup != null)
-                    grp = lastGroup;
-
-                if (!string.IsNullOrEmpty(grp) && grp != lastGroup)
-                {
-                    if (mergeStart > 0 && mergeStart < r - 1)
-                    {
-                        var mr = ws.Range[ws.Cells[mergeStart, 2], ws.Cells[r - 1, 2]];
-                        try
-                        {
-                            bool oldAlert = (bool)app.DisplayAlerts;
-                            try { app.DisplayAlerts = false; mr.Merge(); } catch { }
-                            finally { app.DisplayAlerts = oldAlert; }
-                        }
-                        catch { }
-                    }
-                    mergeStart = r;
-                    lastGroup = grp;
-                }
-            }
-            // Finalize last group
-            if (mergeStart > 0 && mergeStart < endRow)
-            {
-                var mr = ws.Range[ws.Cells[mergeStart, 2], ws.Cells[endRow, 2]];
-                try { mr.Merge(); mr.VerticalAlignment = -4108; } catch { }
-            }
-
-            // Freeze panes
-            app.ActiveWindow.SplitRow = 1;
-            app.ActiveWindow.SplitColumn = 3;
-            app.ActiveWindow.FreezePanes = true;
         }
-        catch { }
+        catch
+        {
+            // Formatting is cosmetic only.
+        }
     }
 
-    private int ColumnLetterToIndex(string col)
+    private static bool IsColumnLetter(string value)
+        => System.Text.RegularExpressions.Regex.IsMatch(value, "^[A-Z]{1,3}$");
+
+    private static dynamic CreateTargetSheet(dynamic app, string name)
+    {
+        foreach (dynamic ws in app.Worksheets)
+        {
+            if (string.Equals(Convert.ToString(ws.Name)?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                ws.UsedRange.Clear();
+                return ws;
+            }
+        }
+
+        dynamic newSheet = app.Worksheets.Add(After: app.ActiveSheet);
+        newSheet.Name = name;
+        return newSheet;
+    }
+
+    private static int ColumnLetterToIndex(string column)
     {
         int result = 0;
-        foreach (var c in col)
+        foreach (char c in column)
         {
             if (!char.IsLetter(c)) return 0;
             result = result * 26 + (c - 'A' + 1);

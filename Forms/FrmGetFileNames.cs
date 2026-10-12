@@ -4,40 +4,40 @@ using ExcelDna.Integration;
 using System.IO;
 
 /// <summary>
-/// 文件名列表：弹文件夹选择器，递归获取目录下所有文件名，写入当前活动工作表。
+/// List the file names under a chosen folder, recursively, into the active
+/// sheet. Launched straight from the ribbon button - no dialog of its own,
+/// matching the original add-in.
 /// </summary>
 internal static class FrmGetFileNames
 {
     public static void Run()
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
-        using var dlg = new FolderBrowserDialog();
-        if (dlg.ShowDialog() != DialogResult.OK) return;
+        using var dialog = new FolderBrowserDialog();
+        if (dialog.ShowDialog() != DialogResult.OK) return;
 
-        string rootPath = dlg.SelectedPath;
+        string rootPath = dialog.SelectedPath;
         if (string.IsNullOrEmpty(rootPath) || !Directory.Exists(rootPath)) return;
 
         try
         {
             var files = Directory.EnumerateFiles(rootPath, "*.*", SearchOption.AllDirectories)
-                .Where(f => !f.EndsWith(".lnk")) // skip shortcuts
+                .Where(f => !f.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(f => f)
                 .ToList();
 
-            if (files.Count == 0) { MessageBox.Show("未找到文件。"); return; }
+            if (files.Count == 0) { MessageBox.Show("No files found.", "Warning"); return; }
 
             dynamic ws = app.ActiveSheet;
-            int startRow = ws.UsedRange.Rows.Count + 1;
+            int startRow = (int)ws.UsedRange.Rows.Count + 1;
 
-            // Header
-            ws.Cells[startRow, 1] = "序号";
-            ws.Cells[startRow, 2] = "文件名";
-            ws.Cells[startRow, 3] = "相对路径";
-            ws.Cells[startRow, 4] = "文件大小(KB)";
+            ws.Cells[startRow, 1] = "No.";
+            ws.Cells[startRow, 2] = "File Name";
+            ws.Cells[startRow, 3] = "Relative Path";
+            ws.Cells[startRow, 4] = "Size (KB)";
 
-            // Data
             for (int i = 0; i < files.Count; i++)
             {
                 int row = startRow + 1 + i;
@@ -47,8 +47,8 @@ internal static class FrmGetFileNames
 
                 try
                 {
-                    var fi = new FileInfo(files[i]);
-                    ws.Cells[row, 4] = Math.Round(fi.Length / 1024.0, 1);
+                    var info = new FileInfo(files[i]);
+                    ws.Cells[row, 4] = Math.Round(info.Length / 1024.0, 1);
                 }
                 catch
                 {
@@ -57,11 +57,12 @@ internal static class FrmGetFileNames
             }
 
             ws.Columns.AutoFit();
-            MessageBox.Show($"已写入 {files.Count} 个文件名。");
+            app.ActiveWorkbook.Save();
+            MessageBox.Show($"Finished and Saved! {files.Count} file name(s) written.", "File Names");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"获取文件列表失败：{ex.Message}");
+            MessageBox.Show($"Failed to list files: {ex.Message}", "Error");
         }
     }
 }

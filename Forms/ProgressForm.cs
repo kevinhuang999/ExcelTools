@@ -1,7 +1,9 @@
 namespace ExcelTools.Forms;
 
+using ExcelTools.Common;
+
 /// <summary>
-/// 进度窗体。TopMost + 可设置进度和消息文本。
+/// Progress window. TopMost, with a settable progress value and message.
 /// </summary>
 public class ProgressForm : Form
 {
@@ -10,7 +12,7 @@ public class ProgressForm : Form
 
     public ProgressForm()
     {
-        this.Text = "处理中";
+        this.Text = "Working";
         this.Size = new Size(380, 110);
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
         this.StartPosition = FormStartPosition.CenterScreen;
@@ -32,12 +34,14 @@ public class ProgressForm : Form
         {
             Location = new Point(15, 60),
             Size = new Size(340, 25),
-            Text = "正在处理，请稍候…",
+            Text = "Working, please wait...",
             TextAlign = ContentAlignment.MiddleLeft
         };
 
         this.Controls.Add(_progressBar);
         this.Controls.Add(_lblMessage);
+
+        UiTheme.Apply(this);
     }
 
     public void SetProgress(int percent)

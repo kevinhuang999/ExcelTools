@@ -4,198 +4,213 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// 多字段匹配提取：按多字段联合匹配两表，匹配成功后将源表Key值填充到目标表。
-/// 通用化自 FrmGet（原为条码匹配）。
+/// Match a source workbook against the active sheet on up to three joint
+/// fields, then write the source key into the target key column.
+///
+/// Step flow matches the original add-in: choose the source file, press OK.
+/// Every field is pre-filled from the last run.
 /// </summary>
 public class FrmKeyMatch : Form
 {
+    private const string KeySourceFile = "keyMatch.sourceFile";
+    private const string KeySourceKeyColumn = "keyMatch.sourceKeyColumn";
+    private const string KeyTargetKeyColumn = "keyMatch.targetKeyColumn";
+    private const string KeyField1 = "keyMatch.field1";
+    private const string KeyField2 = "keyMatch.field2";
+    private const string KeyField3 = "keyMatch.field3";
+
     private readonly TextBox _txtSourceFile;
-    private readonly TextBox _txtKeyCol;
-    private readonly TextBox _txtField1Col;
-    private readonly TextBox _txtField2Col;
-    private readonly TextBox _txtField3Col;
-    private readonly TextBox _txtTargetKeyCol;
+    private readonly TextBox _txtSourceKeyColumn;
+    private readonly TextBox _txtTargetKeyColumn;
+    private readonly TextBox _txtField1;
+    private readonly TextBox _txtField2;
+    private readonly TextBox _txtField3;
 
     public FrmKeyMatch()
     {
-        this.Text = "多字段匹配提取";
-        this.Size = new Size(460, 290);
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.MaximizeBox = false;
-        this.MinimizeBox = false;
+        Text = "Get Key";
+        Size = new Size(400, 260);
+        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
 
-        var lblFile = new Label { Text = "源文件：", Location = new Point(15, 15), AutoSize = true };
-        _txtSourceFile = new TextBox { Location = new Point(100, 13), Width = 280 };
-        var btnFile = new Button { Text = "浏览…", Location = new Point(390, 11), Width = 55 };
-        btnFile.Click += (s, e) =>
+        Controls.Add(new Label { Text = "Source File:", Location = new Point(15, 20), AutoSize = true });
+        _txtSourceFile = new TextBox { Location = new Point(110, 17), Width = 200, Text = Settings.Get(KeySourceFile, "") };
+        Controls.Add(_txtSourceFile);
+
+        var btnOpen = new Button { Text = "Open Excel", Location = new Point(315, 15), Size = new Size(70, 26) };
+        btnOpen.Click += (_, _) =>
         {
-            using var dlg = new OpenFileDialog { Filter = "Excel 文件|*.xls;*.xlsx;*.xlsm" };
-            if (dlg.ShowDialog() == DialogResult.OK)
-                _txtSourceFile.Text = dlg.FileName;
+            using var dialog = new OpenFileDialog { Filter = "Excel Files|*.xls;*.xlsx;*.xlsm" };
+            if (dialog.ShowDialog() == DialogResult.OK) _txtSourceFile.Text = dialog.FileName;
         };
+        Controls.Add(btnOpen);
 
-        var lblKey = new Label { Text = "源表Key列（字母）：", Location = new Point(15, 45), AutoSize = true };
-        _txtKeyCol = new TextBox { Location = new Point(130, 43), Width = 60, Text = "C" };
+        _txtSourceKeyColumn = AddRow("Source Key Col:", 50, Settings.Get(KeySourceKeyColumn, "C"));
+        _txtTargetKeyColumn = AddRow("Target Key Col:", 80, Settings.Get(KeyTargetKeyColumn, "B"));
+        _txtField1 = AddRow("Field1 (src/tgt):", 110, Settings.Get(KeyField1, ""));
+        _txtField2 = AddRow("Field2 (src/tgt):", 140, Settings.Get(KeyField2, ""));
+        _txtField3 = AddRow("Field3 (src/tgt):", 170, Settings.Get(KeyField3, ""), 130);
 
-        var lblTKey = new Label { Text = "目标表Key列（字母）：", Location = new Point(15, 72), AutoSize = true };
-        _txtTargetKeyCol = new TextBox { Location = new Point(130, 70), Width = 60, Text = "B" };
-
-        var lblF1 = new Label { Text = "匹配字段1（源列/目标列，如 L/L）：", Location = new Point(15, 99), AutoSize = true };
-        _txtField1Col = new TextBox { Location = new Point(190, 97), Width = 60, Text = "L/L" };
-
-        var lblF2 = new Label { Text = "匹配字段2：", Location = new Point(15, 126), AutoSize = true };
-        _txtField2Col = new TextBox { Location = new Point(190, 124), Width = 60, Text = "N/N" };
-
-        var lblF3 = new Label { Text = "匹配字段3：", Location = new Point(15, 153), AutoSize = true };
-        _txtField3Col = new TextBox { Location = new Point(190, 151), Width = 60, Text = "O/O" };
-
-        var lblHint = new Label
-        {
-            Text = "说明：按多字段联合匹配源表与目标表，\n匹配成功后将源表Key值写入目标表Key列。\n格式：源列字母/目标列字母（如 L/L）。",
-            Location = new Point(15, 185), Size = new Size(420, 40), ForeColor = System.Drawing.Color.Gray
-        };
-
-        var btnOK = new Button { Text = "开始匹配", Location = new Point(200, 235), Size = new Size(100, 30) };
+        var btnOK = new Button { Text = "OK", Location = new Point(205, 205), Size = new Size(85, 28) };
         btnOK.Click += BtnOK_Click;
 
-        this.Controls.Add(lblFile); this.Controls.Add(_txtSourceFile); this.Controls.Add(btnFile);
-        this.Controls.Add(lblKey); this.Controls.Add(_txtKeyCol);
-        this.Controls.Add(lblTKey); this.Controls.Add(_txtTargetKeyCol);
-        this.Controls.Add(lblF1); this.Controls.Add(_txtField1Col);
-        this.Controls.Add(lblF2); this.Controls.Add(_txtField2Col);
-        this.Controls.Add(lblF3); this.Controls.Add(_txtField3Col);
-        this.Controls.Add(lblHint);
-        this.Controls.Add(btnOK);
+        var btnCancel = new Button { Text = "Cancel", Location = new Point(300, 205), Size = new Size(85, 28) };
+        btnCancel.Click += (_, _) => Close();
+
+        Controls.Add(btnOK);
+        Controls.Add(btnCancel);
+
+        AcceptButton = btnOK;
+        UiTheme.Apply(this, "Matches a source workbook against the active sheet on up to\nthree fields. Field format:  sourceColumn/targetColumn");
+        CancelButton = btnCancel;
+    }
+
+    private TextBox AddRow(string label, int top, string initial, int labelWidth = 115)
+    {
+        Controls.Add(new Label { Text = label, Location = new Point(15, top + 3), AutoSize = true });
+        var box = new TextBox { Location = new Point(labelWidth, top), Width = 120, Text = initial };
+        Controls.Add(box);
+        return box;
     }
 
     private void BtnOK_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
         string sourceFile = _txtSourceFile.Text.Trim();
-        string keyCol = _txtKeyCol.Text.Trim().ToUpper();
-        string targetKeyCol = _txtTargetKeyCol.Text.Trim().ToUpper();
+        string sourceKeyColumn = _txtSourceKeyColumn.Text.Trim().ToUpperInvariant();
+        string targetKeyColumn = _txtTargetKeyColumn.Text.Trim().ToUpperInvariant();
 
-        if (string.IsNullOrEmpty(sourceFile)) { MessageBox.Show("请选择源文件。"); return; }
-        if (!File.Exists(sourceFile)) { MessageBox.Show($"文件不存在：{sourceFile}"); return; }
+        if (string.IsNullOrEmpty(sourceFile)) { MessageBox.Show("Please choose the source file.", "Warning"); return; }
+        if (!File.Exists(sourceFile)) { MessageBox.Show($"File not found: {sourceFile}", "Warning"); return; }
+        if (!IsColumnLetter(sourceKeyColumn) || !IsColumnLetter(targetKeyColumn))
+        {
+            MessageBox.Show("Key columns must be column letters such as A or AB.", "Warning");
+            return;
+        }
 
         var fields = ParseFields();
-        if (fields.Count == 0) { MessageBox.Show("请至少输入一个匹配字段。"); return; }
+        if (fields.Count == 0) { MessageBox.Show("Please enter at least one match field.", "Warning"); return; }
 
+        Settings.SetMany(
+            (KeySourceFile, sourceFile),
+            (KeySourceKeyColumn, sourceKeyColumn),
+            (KeyTargetKeyColumn, targetKeyColumn),
+            (KeyField1, _txtField1.Text.Trim()),
+            (KeyField2, _txtField2.Text.Trim()),
+            (KeyField3, _txtField3.Text.Trim()));
+
+        dynamic? sourceWorkbook = null;
         try
         {
-            // Open source workbook
-            dynamic wbSrc = app.Workbooks.Open(sourceFile, 0, true);
-            dynamic wsSrc = wbSrc.Worksheets[1];
+            sourceWorkbook = app.Workbooks.Open(sourceFile, 0, true);
+            dynamic sourceSheet = sourceWorkbook.Worksheets[1];
+            dynamic targetSheet = app.ActiveSheet;
 
-            // Get target sheet (active sheet)
-            dynamic wsTarget = app.ActiveSheet;
+            MyTools.ClearSpecialSymbols(sourceSheet, out int sourceRows, out int _);
+            MyTools.ClearSpecialSymbols(targetSheet, out int targetRows, out int _);
+            if (sourceRows < 2 || targetRows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
 
-            MyTools.ClearSpecialSymbols(wsSrc, out int srcRows, out int _);
-            MyTools.ClearSpecialSymbols(wsTarget, out int tgtRows, out int _);
-            if (srcRows < 2 || tgtRows < 2) { MessageBox.Show("数据不足。"); return; }
-
-            int srcKeyIdx = ColumnLetterToIndex(keyCol);
-            int tgtKeyIdx = ColumnLetterToIndex(targetKeyCol);
-            if (srcKeyIdx <= 0 || tgtKeyIdx <= 0) return;
+            int sourceKeyIndex = ColumnLetterToIndex(sourceKeyColumn);
+            int targetKeyIndex = ColumnLetterToIndex(targetKeyColumn);
 
             using var progress = new ProgressForm();
             progress.Show();
 
-            // Build dict from source: key -> [field1, field2, field3]
-            var dictSrc = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 2; i <= srcRows; i++)
+            var lookup = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 2; i <= sourceRows; i++)
             {
-                string key = Convert.ToString(wsSrc.Cells[i, srcKeyIdx].Value)?.Trim() ?? "";
-                if (string.IsNullOrEmpty(key) || dictSrc.ContainsKey(key)) continue;
+                string key = Convert.ToString(sourceSheet.Cells[i, sourceKeyIndex].Value)?.Trim() ?? "";
+                if (string.IsNullOrEmpty(key) || lookup.ContainsKey(key)) continue;
 
-                var vals = new string[fields.Count];
+                var values = new string[fields.Count];
                 for (int f = 0; f < fields.Count; f++)
-                {
-                    int colIdx = ColumnLetterToIndex(fields[f].SourceCol);
-                    vals[f] = Convert.ToString(wsSrc.Cells[i, colIdx].Value)?.Trim() ?? "";
-                }
-                dictSrc[key] = vals;
+                    values[f] = Convert.ToString(sourceSheet.Cells[i, ColumnLetterToIndex(fields[f].SourceColumn)].Value)?.Trim() ?? "";
+                lookup[key] = values;
             }
 
-            // Match and fill target
-            int matchCount = 0;
-            var matchedKeys = new List<string>();
-            for (int i = 2; i <= tgtRows; i++)
+            int matched = 0;
+            for (int i = 2; i <= targetRows; i++)
             {
-                // Build match key from target
-                for (int f = 0; f < fields.Count; f++)
+                string targetKey = Convert.ToString(targetSheet.Cells[i, targetKeyIndex].Value)?.Trim() ?? "";
+
+                foreach (var pair in lookup)
                 {
-                    int tgtColIdx = ColumnLetterToIndex(fields[f].TargetCol);
-                    string tgtVal = Convert.ToString(wsTarget.Cells[i, tgtColIdx].Value)?.Trim() ?? "";
-                    // Find in source dict
-                    bool found = false;
-                    foreach (var item in dictSrc)
+                    if (targetKey.Equals(pair.Key, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (item.Value[f] == tgtVal)
+                        bool allMatch = true;
+                        for (int f = 0; f < fields.Count; f++)
                         {
-                            // Check all fields
-                            bool allOk = true;
-                            for (int f2 = 0; f2 < fields.Count; f2++)
+                            string targetValue = Convert.ToString(targetSheet.Cells[i, ColumnLetterToIndex(fields[f].TargetColumn)].Value)?.Trim() ?? "";
+                            if (!string.Equals(pair.Value[f], targetValue, StringComparison.OrdinalIgnoreCase))
                             {
-                                int colIdx2 = ColumnLetterToIndex(fields[f2].TargetCol);
-                                string v2 = Convert.ToString(wsTarget.Cells[i, colIdx2].Value)?.Trim() ?? "";
-                                if (item.Value[f2] != v2) { allOk = false; break; }
-                            }
-                            if (allOk && !matchedKeys.Contains(item.Key))
-                            {
-                                wsTarget.Cells[i, tgtKeyIdx] = item.Key;
-                                matchedKeys.Add(item.Key);
-                                matchCount++;
-                                found = true;
+                                allMatch = false;
                                 break;
                             }
                         }
+
+                        if (allMatch)
+                        {
+                            targetSheet.Cells[i, targetKeyIndex] = pair.Key;
+                            matched++;
+                        }
+                        break;
                     }
-                    if (!found) break;
                 }
 
                 if (i % 500 == 0)
                 {
-                    progress.SetMessage($"匹配中… {i}/{tgtRows}");
-                    progress.SetProgress((int)(i * 100.0 / tgtRows));
+                    progress.SetMessage($"Matching... {i}/{targetRows}");
+                    progress.SetProgress((int)(i * 100.0 / targetRows));
                     Application.DoEvents();
                 }
             }
 
-            wbSrc.Close(false);
-            progress.SetMessage($"完成！匹配 {matchCount} 条。");
-            System.Threading.Thread.Sleep(1000);
+            app.ActiveWorkbook.Save();
+            progress.SetProgress(100);
+            progress.SetMessage($"Done. {matched} row(s) matched.");
+            Application.DoEvents();
+            System.Threading.Thread.Sleep(600);
+
+            MessageBox.Show($"Finished and Saved! {matched} row(s) matched.", "Get Key");
+            Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"匹配出错：{ex.Message}");
+            MessageBox.Show($"Match failed: {ex.Message}", "Error");
+        }
+        finally
+        {
+            try { sourceWorkbook?.Close(false); } catch { }
         }
     }
 
-    private List<(string SourceCol, string TargetCol)> ParseFields()
+    private List<(string SourceColumn, string TargetColumn)> ParseFields()
     {
         var list = new List<(string, string)>();
-        var inputs = new[] { _txtField1Col.Text, _txtField2Col.Text, _txtField3Col.Text };
-        foreach (var input in inputs)
+        foreach (string input in new[] { _txtField1.Text, _txtField2.Text, _txtField3.Text })
         {
-            var parts = input.Trim().Split('/');
+            string[] parts = input.Trim().Split('/');
             if (parts.Length >= 2 &&
-                System.Text.RegularExpressions.Regex.IsMatch(parts[0].Trim().ToUpper(), "^[A-Z]{1,3}$") &&
-                System.Text.RegularExpressions.Regex.IsMatch(parts[1].Trim().ToUpper(), "^[A-Z]{1,3}$"))
+                IsColumnLetter(parts[0].Trim().ToUpperInvariant()) &&
+                IsColumnLetter(parts[1].Trim().ToUpperInvariant()))
             {
-                list.Add((parts[0].Trim().ToUpper(), parts[1].Trim().ToUpper()));
+                list.Add((parts[0].Trim().ToUpperInvariant(), parts[1].Trim().ToUpperInvariant()));
             }
         }
         return list;
     }
 
-    private int ColumnLetterToIndex(string col)
+    private static bool IsColumnLetter(string value)
+        => System.Text.RegularExpressions.Regex.IsMatch(value, "^[A-Z]{1,3}$");
+
+    private static int ColumnLetterToIndex(string column)
     {
         int result = 0;
-        foreach (var c in col)
+        foreach (char c in column)
         {
             if (!char.IsLetter(c)) return 0;
             result = result * 26 + (c - 'A' + 1);

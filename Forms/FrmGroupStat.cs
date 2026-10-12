@@ -4,158 +4,226 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// 分组统计：按分类字段拆分，生成"分类×月份"交叉汇总表。
+/// Statistics: group the active sheet by one column and produce a
+/// category-by-period cross table on its own sheet.
+///
+/// Step flow matches the original add-in: open, press the action button. All
+/// three column fields are pre-filled from the last run.
 /// </summary>
 public class FrmGroupStat : Form
 {
-    private readonly TextBox _txtGroupCol;
-    private readonly TextBox _txtCountCol;
-    private readonly TextBox _txtMonthCol;
+    private const string KeyGroupColumn = "groupStat.groupColumn";
+    private const string KeyPeriodColumn = "groupStat.periodColumn";
+    private const string KeyTargetSheet = "groupStat.targetSheet";
+
+    private readonly TextBox _txtGroupColumn;
+    private readonly TextBox _txtPeriodColumn;
+    private readonly TextBox _txtTargetSheet;
 
     public FrmGroupStat()
     {
-        this.Text = "分组统计";
-        this.Size = new Size(400, 210);
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.MaximizeBox = false;
-        this.MinimizeBox = false;
+        Text = "SM Monthly Statistics";
+        Size = new Size(360, 205);
+        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
 
-        var lbl1 = new Label { Text = "分类列（列字母）：", Location = new Point(15, 20), AutoSize = true };
-        _txtGroupCol = new TextBox { Location = new Point(120, 18), Width = 80, Text = "A" };
-
-        var lbl2 = new Label { Text = "统计列（列字母）：", Location = new Point(15, 55), AutoSize = true };
-        _txtCountCol = new TextBox { Location = new Point(120, 53), Width = 80, Text = "B" };
-
-        var lbl3 = new Label { Text = "月份列（列字母）：", Location = new Point(15, 90), AutoSize = true };
-        _txtMonthCol = new TextBox { Location = new Point(120, 88), Width = 80, Text = "C" };
-
-        var lblHint = new Label
+        Controls.Add(new Label { Text = "Category Column:", Location = new Point(15, 20), AutoSize = true });
+        _txtGroupColumn = new TextBox
         {
-            Text = "说明：按分类列分组，统计每组的记录数，\n按月份列拆分为交叉表，最后一列为合计。",
-            Location = new Point(15, 120), Size = new Size(360, 35), ForeColor = System.Drawing.Color.Gray
+            Location = new Point(140, 17),
+            Width = 70,
+            Text = Settings.Get(KeyGroupColumn, "A")
         };
+        Controls.Add(_txtGroupColumn);
 
-        var btnOK = new Button { Text = "开始统计", Location = new Point(200, 165), Size = new Size(100, 30) };
-        btnOK.Click += BtnOK_Click;
+        Controls.Add(new Label { Text = "Period Column:", Location = new Point(15, 50), AutoSize = true });
+        _txtPeriodColumn = new TextBox
+        {
+            Location = new Point(140, 47),
+            Width = 70,
+            Text = Settings.Get(KeyPeriodColumn, "B")
+        };
+        Controls.Add(_txtPeriodColumn);
 
-        this.Controls.Add(lbl1); this.Controls.Add(_txtGroupCol);
-        this.Controls.Add(lbl2); this.Controls.Add(_txtCountCol);
-        this.Controls.Add(lbl3); this.Controls.Add(_txtMonthCol);
-        this.Controls.Add(lblHint);
-        this.Controls.Add(btnOK);
+        Controls.Add(new Label { Text = "Output Sheet:", Location = new Point(15, 80), AutoSize = true });
+        _txtTargetSheet = new TextBox
+        {
+            Location = new Point(140, 77),
+            Width = 120,
+            Text = Settings.Get(KeyTargetSheet, "Statistics")
+        };
+        Controls.Add(_txtTargetSheet);
+
+        var btnStatistics = new Button
+        {
+            Text = "Statistics",
+            Location = new Point(150, 125),
+            Size = new Size(90, 28)
+        };
+        btnStatistics.Click += BtnStatistics_Click;
+
+        var btnCancel = new Button
+        {
+            Text = "Cancel",
+            Location = new Point(250, 125),
+            Size = new Size(90, 28)
+        };
+        btnCancel.Click += (_, _) => Close();
+
+        Controls.Add(btnStatistics);
+        Controls.Add(btnCancel);
+
+        AcceptButton = btnStatistics;
+        UiTheme.Apply(this, "Groups the active sheet by one column and writes a\ncategory-by-period cross table to a new sheet.");
+        CancelButton = btnCancel;
     }
 
-    private void BtnOK_Click(object? sender, EventArgs e)
+    private void BtnStatistics_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
-        string groupCol = _txtGroupCol.Text.Trim().ToUpper();
-        string countCol = _txtCountCol.Text.Trim().ToUpper();
-        string monthCol = _txtMonthCol.Text.Trim().ToUpper();
+        string groupColumn = _txtGroupColumn.Text.Trim().ToUpperInvariant();
+        string periodColumn = _txtPeriodColumn.Text.Trim().ToUpperInvariant();
+        string targetSheetName = _txtTargetSheet.Text.Trim();
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(groupCol, "^[A-Z]{1,3}$") ||
-            !System.Text.RegularExpressions.Regex.IsMatch(countCol, "^[A-Z]{1,3}$") ||
-            !System.Text.RegularExpressions.Regex.IsMatch(monthCol, "^[A-Z]{1,3}$"))
-        { MessageBox.Show("列字母格式不正确。"); return; }
+        if (!IsColumnLetter(groupColumn) || !IsColumnLetter(periodColumn))
+        {
+            MessageBox.Show("Columns must be column letters such as A or AB.", "Warning");
+            return;
+        }
+        if (string.IsNullOrEmpty(targetSheetName))
+        {
+            MessageBox.Show("Please enter an output sheet name.", "Warning");
+            return;
+        }
 
         dynamic ws = app.ActiveSheet;
-        MyTools.ClearSpecialSymbols(ws, out int rows, out int cols);
-        if (rows < 2) { MessageBox.Show("数据不足。"); return; }
+        if (!MyTools.ClearSpecialSymbols(ws, out int rows, out int _))
+        {
+            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (rows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
+        app.ActiveWorkbook.Save();
 
-        int groupColIdx = ColumnLetterToIndex(groupCol);
-        int monthColIdx = ColumnLetterToIndex(monthCol);
+        Settings.SetMany(
+            (KeyGroupColumn, groupColumn),
+            (KeyPeriodColumn, periodColumn),
+            (KeyTargetSheet, targetSheetName));
 
-        // Collect group values
+        int groupColumnIndex = ColumnLetterToIndex(groupColumn);
+        int periodColumnIndex = ColumnLetterToIndex(periodColumn);
+
         var groups = new List<string>();
-        var groupMonthCounts = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+        var counts = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+
+        using var progress = new ProgressForm();
+        progress.Show();
 
         for (int r = 2; r <= rows; r++)
         {
-            string g = Convert.ToString(ws.Cells[r, groupColIdx].Value)?.Trim() ?? "";
-            string m = Convert.ToString(ws.Cells[r, monthColIdx].Value)?.Trim() ?? "";
-            if (string.IsNullOrEmpty(g)) continue;
+            string group = Convert.ToString(ws.Cells[r, groupColumnIndex].Value)?.Trim() ?? "";
+            string period = Convert.ToString(ws.Cells[r, periodColumnIndex].Value)?.Trim() ?? "";
+            if (string.IsNullOrEmpty(group)) continue;
 
-            if (!groups.Contains(g))
+            if (!counts.TryGetValue(group, out var byPeriod))
             {
-                groups.Add(g);
-                groupMonthCounts[g] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                groups.Add(group);
+                byPeriod = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                counts[group] = byPeriod;
             }
 
-            if (!string.IsNullOrEmpty(m))
+            if (!string.IsNullOrEmpty(period))
             {
-                if (!groupMonthCounts[g].ContainsKey(m))
-                    groupMonthCounts[g][m] = 0;
-                groupMonthCounts[g][m]++;
+                byPeriod.TryGetValue(period, out int current);
+                byPeriod[period] = current + 1;
+            }
+
+            if (r % 500 == 0)
+            {
+                progress.SetMessage($"Reading... {r}/{rows}");
+                progress.SetProgress((int)(r * 50.0 / rows));
+                Application.DoEvents();
             }
         }
 
-        if (groups.Count == 0) { MessageBox.Show("未找到有效分类数据。"); return; }
-
-        // Collect all unique months
-        var allMonths = new List<string>();
-        foreach (var gd in groupMonthCounts.Values)
-            foreach (var m in gd.Keys)
-                if (!allMonths.Contains(m)) allMonths.Add(m);
-        allMonths.Sort();
-
-        // Create target sheet
-        string tgtName = "GroupStat";
-        dynamic tgtWs = null;
-        foreach (dynamic w in app.Worksheets)
+        if (groups.Count == 0)
         {
-            if (string.Equals(w.Name?.ToString().Trim(), tgtName, StringComparison.OrdinalIgnoreCase))
-            { tgtWs = w; w.UsedRange.Clear(); break; }
-        }
-        if (tgtWs == null)
-        {
-            tgtWs = app.Worksheets.Add(After: ws);
-            tgtWs.Name = tgtName;
+            MessageBox.Show("No usable category values found.", "Warning");
+            return;
         }
 
-        // Write header: group, month1, month2, ..., total
-        tgtWs.Cells[1, 1] = "分类";
-        for (int c = 0; c < allMonths.Count; c++)
-            tgtWs.Cells[1, c + 2] = allMonths[c];
-        tgtWs.Cells[1, allMonths.Count + 2] = "合计";
+        var periods = new List<string>();
+        foreach (var byPeriod in counts.Values)
+            foreach (string p in byPeriod.Keys)
+                if (!periods.Contains(p)) periods.Add(p);
+        periods.Sort(StringComparer.OrdinalIgnoreCase);
 
-        // Write data rows
+        dynamic? targetSheet = FindSheet(app, targetSheetName);
+        if (targetSheet == null)
+        {
+            targetSheet = app.Worksheets.Add(After: app.Worksheets[app.Worksheets.Count]);
+            targetSheet.Name = targetSheetName;
+        }
+        else
+        {
+            targetSheet.UsedRange.Clear();
+        }
+
+        targetSheet.Cells[1, 1] = groupColumn;
+        for (int c = 0; c < periods.Count; c++)
+            targetSheet.Cells[1, c + 2] = periods[c];
+        targetSheet.Cells[1, periods.Count + 2] = "Total";
+
         for (int g = 0; g < groups.Count; g++)
         {
-            tgtWs.Cells[g + 2, 1] = groups[g];
+            targetSheet.Cells[g + 2, 1] = groups[g];
+            var byPeriod = counts[groups[g]];
             int rowTotal = 0;
-            var gd = groupMonthCounts[groups[g]];
-            for (int c = 0; c < allMonths.Count; c++)
+            for (int c = 0; c < periods.Count; c++)
             {
-                int cnt = gd.ContainsKey(allMonths[c]) ? gd[allMonths[c]] : 0;
-                tgtWs.Cells[g + 2, c + 2] = cnt;
-                rowTotal += cnt;
+                byPeriod.TryGetValue(periods[c], out int value);
+                targetSheet.Cells[g + 2, c + 2] = value;
+                rowTotal += value;
             }
-            tgtWs.Cells[g + 2, allMonths.Count + 2] = rowTotal;
+            targetSheet.Cells[g + 2, periods.Count + 2] = rowTotal;
+            progress.SetProgress(50 + (int)((g + 1) * 50.0 / groups.Count));
+            Application.DoEvents();
         }
 
-        // Write column totals
-        int totalRow = groups.Count + 2;
-        tgtWs.Cells[totalRow, 1] = "合计";
-        for (int c = 0; c < allMonths.Count; c++)
+        targetSheet.Columns.AutoFit();
+        progress.SetProgress(100);
+        progress.SetMessage("Done.");
+        app.ActiveWorkbook.Save();
+
+        Close();
+
+        if (DialogResult.Yes == MessageBox.Show("Finish and Saved! Close Now?", "Question", MessageBoxButtons.YesNo))
         {
-            int colTotal = 0;
-            for (int g = 0; g < groups.Count; g++)
-                if (groupMonthCounts[groups[g]].ContainsKey(allMonths[c]))
-                    colTotal += groupMonthCounts[groups[g]][allMonths[c]];
-            tgtWs.Cells[totalRow, c + 2] = colTotal;
+            app.Quit();
         }
-        tgtWs.Cells[totalRow, allMonths.Count + 2] = "总计";
-
-        tgtWs.Columns.AutoFit();
-        MessageBox.Show($"分组统计完成！共 {groups.Count} 个分类，{allMonths.Count} 个月份。");
     }
 
-    private int ColumnLetterToIndex(string col)
+    private static bool IsColumnLetter(string value)
+        => System.Text.RegularExpressions.Regex.IsMatch(value, "^[A-Z]{1,3}$");
+
+    private static dynamic? FindSheet(dynamic app, string name)
+    {
+        foreach (dynamic ws in app.Worksheets)
+        {
+            if (string.Equals(Convert.ToString(ws.Name)?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                return ws;
+        }
+        return null;
+    }
+
+    private static int ColumnLetterToIndex(string column)
     {
         int result = 0;
-        foreach (var c in col)
+        foreach (char c in column)
         {
             if (!char.IsLetter(c)) return 0;
             result = result * 26 + (c - 'A' + 1);

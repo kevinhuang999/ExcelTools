@@ -4,126 +4,167 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// 删除匹配行：从源表中删除与基准表匹配的行。所有参数用户输入。
+/// Delete rows in the source sheet whose key value also appears in the base
+/// sheet.
+///
+/// Step flow matches the original add-in: open, press the action button. All
+/// four parameters are pre-filled from the last run (and default to the
+/// conventional names), so normally nothing has to be typed.
 /// </summary>
 public class FrmDelete : Form
 {
+    private const string KeySourceSheet = "delete.sourceSheet";
+    private const string KeyBaseSheet = "delete.baseSheet";
+    private const string KeySourceColumn = "delete.sourceColumn";
+    private const string KeyBaseColumn = "delete.baseColumn";
+
     private readonly TextBox _txtSourceSheet;
     private readonly TextBox _txtBaseSheet;
-    private readonly TextBox _txtSourceCol;
-    private readonly TextBox _txtBaseCol;
+    private readonly TextBox _txtSourceColumn;
+    private readonly TextBox _txtBaseColumn;
 
     public FrmDelete()
     {
-        this.Text = "删除匹配行";
-        this.Size = new Size(400, 200);
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.MaximizeBox = false;
-        this.MinimizeBox = false;
+        Text = "Delete";
+        Size = new Size(330, 205);
+        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
 
-        var lbl1 = new Label { Text = "源表名：", Location = new Point(15, 20), AutoSize = true };
-        _txtSourceSheet = new TextBox { Location = new Point(120, 18), Width = 180 };
+        _txtSourceSheet = AddRow("Source Sheet:", 18, Settings.Get(KeySourceSheet, "Sheet1"));
+        _txtBaseSheet = AddRow("Base Sheet:", 48, Settings.Get(KeyBaseSheet, "Base"));
+        _txtSourceColumn = AddRow("Source Column:", 78, Settings.Get(KeySourceColumn, "A"));
+        _txtBaseColumn = AddRow("Base Column:", 108, Settings.Get(KeyBaseColumn, "A"));
 
-        var lbl2 = new Label { Text = "基准表名：", Location = new Point(15, 50), AutoSize = true };
-        _txtBaseSheet = new TextBox { Location = new Point(120, 48), Width = 180 };
+        var btnDelete = new Button
+        {
+            Text = "Delete Imported Records",
+            Location = new Point(15, 148),
+            Size = new Size(170, 30)
+        };
+        btnDelete.Click += BtnDelete_Click;
 
-        var lbl3 = new Label { Text = "源表匹配列（字母）：", Location = new Point(15, 80), AutoSize = true };
-        _txtSourceCol = new TextBox { Location = new Point(120, 78), Width = 80 };
+        var btnCancel = new Button
+        {
+            Text = "Cancel",
+            Location = new Point(195, 148),
+            Size = new Size(90, 30)
+        };
+        btnCancel.Click += (_, _) => Close();
 
-        var lbl4 = new Label { Text = "基准表匹配列（字母）：", Location = new Point(15, 110), AutoSize = true };
-        _txtBaseCol = new TextBox { Location = new Point(120, 108), Width = 80 };
+        Controls.Add(btnDelete);
+        Controls.Add(btnCancel);
 
-        var btnOK = new Button { Text = "开始删除", Location = new Point(180, 150), Size = new Size(100, 30) };
-        btnOK.Click += BtnOK_Click;
-
-        this.Controls.Add(lbl1); this.Controls.Add(_txtSourceSheet);
-        this.Controls.Add(lbl2); this.Controls.Add(_txtBaseSheet);
-        this.Controls.Add(lbl3); this.Controls.Add(_txtSourceCol);
-        this.Controls.Add(lbl4); this.Controls.Add(_txtBaseCol);
-        this.Controls.Add(btnOK);
+        AcceptButton = btnDelete;
+        UiTheme.Apply(this, "Deletes rows from the source sheet whose key value also\nexists in the base sheet.");
+        CancelButton = btnCancel;
     }
 
-    private void BtnOK_Click(object? sender, EventArgs e)
+    private TextBox AddRow(string label, int top, string initial)
+    {
+        Controls.Add(new Label { Text = label, Location = new Point(15, top + 3), AutoSize = true });
+        var box = new TextBox { Location = new Point(135, top), Width = 150, Text = initial };
+        Controls.Add(box);
+        return box;
+    }
+
+    private void BtnDelete_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
-        string srcSheet = _txtSourceSheet.Text.Trim();
-        string baseSheet = _txtBaseSheet.Text.Trim();
-        string srcCol = _txtSourceCol.Text.Trim().ToUpper();
-        string baseCol = _txtBaseCol.Text.Trim().ToUpper();
+        string sourceSheetName = _txtSourceSheet.Text.Trim();
+        string baseSheetName = _txtBaseSheet.Text.Trim();
+        string sourceColumn = _txtSourceColumn.Text.Trim().ToUpperInvariant();
+        string baseColumn = _txtBaseColumn.Text.Trim().ToUpperInvariant();
 
-        if (string.IsNullOrEmpty(srcSheet) || string.IsNullOrEmpty(baseSheet))
-        { MessageBox.Show("请输入表名。"); return; }
-        if (!System.Text.RegularExpressions.Regex.IsMatch(srcCol, "^[A-Z]{1,3}$") ||
-            !System.Text.RegularExpressions.Regex.IsMatch(baseCol, "^[A-Z]{1,3}$"))
-        { MessageBox.Show("列字母格式不正确。"); return; }
+        if (string.IsNullOrEmpty(sourceSheetName) || string.IsNullOrEmpty(baseSheetName))
+        {
+            MessageBox.Show("Please enter both sheet names.", "Warning");
+            return;
+        }
+        if (!IsColumnLetter(sourceColumn) || !IsColumnLetter(baseColumn))
+        {
+            MessageBox.Show("Columns must be column letters such as A or AB.", "Warning");
+            return;
+        }
 
-        dynamic srcWs = FindSheet(app, srcSheet);
-        dynamic baseWs = FindSheet(app, baseSheet);
-        if (srcWs == null) { MessageBox.Show($"找不到源表：{srcSheet}"); return; }
-        if (baseWs == null) { MessageBox.Show($"找不到基准表：{baseSheet}"); return; }
+        dynamic? sourceSheet = FindSheet(app, sourceSheetName);
+        dynamic? baseSheet = FindSheet(app, baseSheetName);
+        if (sourceSheet == null) { MessageBox.Show($"Sheet not found: {sourceSheetName}", "Warning"); return; }
+        if (baseSheet == null) { MessageBox.Show($"Sheet not found: {baseSheetName}", "Warning"); return; }
 
-        MyTools.ClearSpecialSymbols(srcWs, out int srcRows, out int _);
-        MyTools.ClearSpecialSymbols(baseWs, out int baseRows, out int _);
-        if (srcRows < 2 || baseRows < 2) { MessageBox.Show("数据不足。"); return; }
+        Settings.SetMany(
+            (KeySourceSheet, sourceSheetName),
+            (KeyBaseSheet, baseSheetName),
+            (KeySourceColumn, sourceColumn),
+            (KeyBaseColumn, baseColumn));
 
-        int srcColIdx = ColumnLetterToIndex(srcCol);
-        int baseColIdx = ColumnLetterToIndex(baseCol);
+        MyTools.ClearSpecialSymbols(sourceSheet, out int sourceRows, out int _);
+        MyTools.ClearSpecialSymbols(baseSheet, out int baseRows, out int _);
+        if (sourceRows < 2 || baseRows < 2) { MessageBox.Show("Not enough data.", "Warning"); return; }
 
-        // Collect base values into HashSet for fast lookup
+        int sourceColumnIndex = ColumnLetterToIndex(sourceColumn);
+        int baseColumnIndex = ColumnLetterToIndex(baseColumn);
+
         var baseValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int r = 2; r <= baseRows; r++)
         {
-            string val = Convert.ToString(baseWs.Cells[r, baseColIdx].Value)?.Trim() ?? "";
-            if (!string.IsNullOrEmpty(val))
-                baseValues.Add(val);
+            string value = Convert.ToString(baseSheet.Cells[r, baseColumnIndex].Value)?.Trim() ?? "";
+            if (!string.IsNullOrEmpty(value)) baseValues.Add(value);
         }
-
-        if (baseValues.Count == 0) { MessageBox.Show("基准表无有效数据。"); return; }
+        if (baseValues.Count == 0) { MessageBox.Show("The base sheet has no usable values.", "Warning"); return; }
 
         using var progress = new ProgressForm();
         progress.Show();
 
-        int deleteCount = 0;
-        // Traverse in reverse to safely delete rows
-        for (int r = srcRows; r >= 2; r--)
+        int deleted = 0;
+        for (int r = sourceRows; r >= 2; r--)
         {
-            string val = Convert.ToString(srcWs.Cells[r, srcColIdx].Value)?.Trim() ?? "";
-            if (!string.IsNullOrEmpty(val) && baseValues.Contains(val))
+            string value = Convert.ToString(sourceSheet.Cells[r, sourceColumnIndex].Value)?.Trim() ?? "";
+            if (!string.IsNullOrEmpty(value) && baseValues.Contains(value))
             {
-                srcWs.Rows[r].Delete();
-                deleteCount++;
+                sourceSheet.Rows[r].Delete();
+                deleted++;
             }
 
             if (r % 500 == 0)
             {
-                progress.SetMessage($"处理中… {r}/{srcRows}");
-                progress.SetProgress((int)((srcRows - r) * 100.0 / srcRows));
+                progress.SetMessage($"Deleting... {r}/{sourceRows}");
+                progress.SetProgress((int)((sourceRows - r) * 100.0 / sourceRows));
                 Application.DoEvents();
             }
         }
 
-        progress.SetMessage($"完成！删除 {deleteCount} 行。");
-        srcWs.Columns.AutoFit();
-        System.Threading.Thread.Sleep(1000);
+        sourceSheet.Columns.AutoFit();
+        app.ActiveWorkbook.Save();
+        progress.SetProgress(100);
+        progress.SetMessage($"Done. {deleted} row(s) deleted.");
+        Application.DoEvents();
+        System.Threading.Thread.Sleep(600);
+
+        MessageBox.Show($"Finished and Saved! {deleted} row(s) deleted.", "Delete");
+        Close();
     }
 
-    private dynamic? FindSheet(dynamic app, string name)
+    private static bool IsColumnLetter(string value)
+        => System.Text.RegularExpressions.Regex.IsMatch(value, "^[A-Z]{1,3}$");
+
+    private static dynamic? FindSheet(dynamic app, string name)
     {
         foreach (dynamic ws in app.Worksheets)
         {
-            if (string.Equals(ws.Name?.ToString().Trim(), name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(Convert.ToString(ws.Name)?.Trim(), name, StringComparison.OrdinalIgnoreCase))
                 return ws;
         }
         return null;
     }
 
-    private int ColumnLetterToIndex(string col)
+    private static int ColumnLetterToIndex(string column)
     {
         int result = 0;
-        foreach (var c in col)
+        foreach (char c in column)
         {
             if (!char.IsLetter(c)) return 0;
             result = result * 26 + (c - 'A' + 1);

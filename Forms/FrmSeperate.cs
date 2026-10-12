@@ -4,84 +4,159 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// 拆分工作表：按指定列的值将总表拆成多个工作表。
+/// Seperate the active sheet into several sheets, one per distinct value of a
+/// chosen column.
+///
+/// Step flow matches the original add-in: open, (optionally change the column),
+/// press the action button. The column is pre-filled from the last run.
 /// </summary>
 public class FrmSeperate : Form
 {
-    private readonly TextBox _txtColumn;
+    private const string SettingsKey = "seperate.column";
+
+    private readonly TextBox _txtColumnHeader;
 
     public FrmSeperate()
     {
-        this.Text = "拆分工作表";
-        this.Size = new Size(360, 170);
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.MaximizeBox = false;
-        this.MinimizeBox = false;
+        Text = "Seperate";
+        Size = new Size(370, 215);
+        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
 
-        var lbl1 = new Label { Text = "按哪列拆分（列字母，如 A、B）：", Location = new Point(15, 20), AutoSize = true };
-        _txtColumn = new TextBox { Location = new Point(180, 18), Width = 100, Text = "B" };
+        var lblColumn = UiTheme.FieldLabel("Column Header:");
+        lblColumn.Location = new Point(18, 26);
 
-        var btnOK = new Button { Text = "开始拆分", Location = new Point(180, 70), Size = new Size(100, 30) };
-        btnOK.Click += BtnOK_Click;
+        _txtColumnHeader = new TextBox
+        {
+            Location = new Point(145, 23),
+            Width = 80,
+            Text = Settings.Get(SettingsKey, "A")
+        };
 
-        this.Controls.Add(lbl1);
-        this.Controls.Add(_txtColumn);
-        this.Controls.Add(btnOK);
+        var btnSeperate = UiTheme.PrimaryButton("Seperate");
+        btnSeperate.Location = new Point(120, 90);
+
+        var btnCancel = UiTheme.SecondaryButton("Cancel");
+        btnCancel.Location = new Point(240, 90);
+
+        btnSeperate.Click += BtnSeperate_Click;
+        btnCancel.Click += (_, _) => Close();
+
+        Controls.Add(lblColumn);
+        Controls.Add(_txtColumnHeader);
+        Controls.Add(btnSeperate);
+        Controls.Add(btnCancel);
+
+        AcceptButton = btnSeperate;
+        CancelButton = btnCancel;
+
+        UiTheme.Apply(this,
+            "Splits the active sheet, creating one sheet for each distinct\nvalue found in the column you name.",
+            (lblColumn, "The column whose values decide how the sheet is split."),
+            (_txtColumnHeader, "Column letter of the key field, for example A or AB."),
+            (btnSeperate, "Split the active sheet now."),
+            (btnCancel, "Close without changing anything."));
+
+        _txtColumnHeader.SelectAll();
     }
 
-    private async void BtnOK_Click(object? sender, EventArgs e)
+    private void BtnSeperate_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
-        string column = _txtColumn.Text.Trim().ToUpper();
-        if (string.IsNullOrEmpty(column)) { MessageBox.Show("请输入列字母。"); return; }
-
+        string column = _txtColumnHeader.Text.Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(column))
+        {
+            MessageBox.Show("Please enter the Column Header!", "Warning");
+            return;
+        }
         if (!System.Text.RegularExpressions.Regex.IsMatch(column, "^[A-Z]{1,3}$"))
-        { MessageBox.Show("列字母格式不正确。"); return; }
+        {
+            MessageBox.Show("The Column Header must be a column letter such as A or AB.", "Warning");
+            return;
+        }
 
-        dynamic ws = app.ActiveSheet;
-        MyTools.ClearSpecialSymbols(ws, out int rows, out int cols);
-        if (rows < 2) { MessageBox.Show("数据不足。"); return; }
+        dynamic mainSheet = app.ActiveSheet;
 
-        var values = MyTools.GetByField(app, column);
-        if (values == null || values.Count == 0) { MessageBox.Show("未找到有效数据。"); return; }
+        if (string.IsNullOrEmpty(Convert.ToString(mainSheet.Cells[1, column].Value)))
+        {
+            MessageBox.Show("The header should not be Empty!", "Warning");
+            return;
+        }
+
+        string mainSheetName = Convert.ToString(mainSheet.Name)?.Trim() ?? "Sheet1";
+
+        if (!MyTools.ClearSpecialSymbols(mainSheet, out int rowsCount, out int colsCount))
+        {
+            MessageBox.Show("Empty table or unable to clear special symbols!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        app.ActiveWorkbook.Save();
+
+        List<string>? listByField = MyTools.GetByField(app, column);
+        if (listByField == null)
+        {
+            MessageBox.Show("Fields not found!", "Warning");
+            return;
+        }
+        if (!MyTools.IsSheetNameValid(listByField))
+        {
+            MessageBox.Show("Contains strings that do not conform to the worksheet naming convention!", "Warning");
+            return;
+        }
+
+        Settings.Set(SettingsKey, column);
 
         using var progress = new ProgressForm();
         progress.Show();
 
-        int total = values.Count;
-        int i = 0;
-        foreach (var val in values)
+        int index = 0;
+        foreach (string item in listByField)
         {
-            i++;
-            progress.SetMessage($"正在拆分：{val}（{i}/{total}）");
-            progress.SetProgress((int)(i * 100.0 / total));
+            index++;
+            progress.SetMessage($"Seperating: {item}  ({index}/{listByField.Count})");
+            progress.SetProgress((int)(index * 100.0 / listByField.Count));
+            Application.DoEvents();
 
-            string sheetName = val.Length > 31 ? val.Substring(0, 31) : val;
-            if (!MyTools.IsSheetNameValid(sheetName))
+            dynamic? targetSheet = FindSheet(app, item);
+            if (targetSheet == null)
             {
-                progress.SetMessage($"跳过无效名称：{val}");
-                continue;
+                targetSheet = app.Worksheets.Add(After: app.Worksheets[app.Worksheets.Count]);
+                targetSheet.Name = item;
+            }
+            else
+            {
+                targetSheet.UsedRange.Clear();
             }
 
-            string sheetSql = $"'[\"{app.ActiveWorkbook.Name}\"]{ws.Name.Trim()}!\"{column}:{column}\"'";
-            string sql = $"SELECT * FROM [{ws.Name.Trim()}] WHERE [{column}]='{val.Replace("'", "''")}'";
-            try
-            {
-                dynamic newWs = app.Worksheets.Add(After: ws);
-                newWs.Name = sheetName;
-                MyTools.CopyToNewSheet(app, sql, newWs);
-                MyTools.FormatToText(newWs, rows, cols);
-            }
-            catch { }
+            MyTools.FormatToText(targetSheet, rowsCount, colsCount);
 
-            await Task.Yield();
+            string sql = $"SELECT * FROM [{mainSheetName}$] WHERE [{mainSheetName}$].[{Convert.ToString(app.Cells[1, column].Value)}] = '{item.Replace("'", "''")}'";
+            MyTools.CopyToNewSheet(app, sql, targetSheet);
         }
 
         progress.SetProgress(100);
-        progress.SetMessage("拆分完成！");
-        System.Threading.Thread.Sleep(1000);
+        progress.SetMessage("Done.");
+        app.ActiveWorkbook.Save();
+
+        Close();
+
+        if (DialogResult.Yes == MessageBox.Show("Finish and Saved! Close Now?", "Question", MessageBoxButtons.YesNo))
+        {
+            app.Quit();
+        }
+    }
+
+    private static dynamic? FindSheet(dynamic app, string name)
+    {
+        foreach (dynamic ws in app.Worksheets)
+        {
+            if (string.Equals(Convert.ToString(ws.Name)?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                return ws;
+        }
+        return null;
     }
 }

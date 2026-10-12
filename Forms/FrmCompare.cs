@@ -4,149 +4,169 @@ using ExcelDna.Integration;
 using ExcelTools.Common;
 
 /// <summary>
-/// 两表比对：比较两个 Excel 文件的第一个工作表，逐格输出差异。
+/// Compare the first worksheet of two workbooks cell by cell and write the
+/// differences to a "Compare" sheet.
+///
+/// Step flow matches the original add-in: pick the two files, press Compare.
+/// The file paths are pre-filled from the last run.
 /// </summary>
 public class FrmCompare : Form
 {
+    private const string KeyFile1 = "compare.file1";
+    private const string KeyFile2 = "compare.file2";
+
     private readonly TextBox _txtFile1;
     private readonly TextBox _txtFile2;
 
     public FrmCompare()
     {
-        this.Text = "两表比对";
-        this.Size = new Size(460, 170);
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.MaximizeBox = false;
-        this.MinimizeBox = false;
+        Text = "Compare Excel";
+        Size = new Size(440, 175);
+        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
 
-        var lbl1 = new Label { Text = "文件 1：", Location = new Point(15, 20), AutoSize = true };
-        _txtFile1 = new TextBox { Location = new Point(70, 18), Width = 300 };
+        Controls.Add(new Label { Text = "File1", Location = new Point(15, 22), AutoSize = true });
+        _txtFile1 = new TextBox { Location = new Point(70, 19), Width = 260, Text = Settings.Get(KeyFile1, "") };
+        Controls.Add(_txtFile1);
 
-        var btnFile1 = new Button { Text = "浏览…", Location = new Point(380, 16), Width = 60 };
-        btnFile1.Click += (s, e) => SelectFile(_txtFile1);
+        var btnSelect1 = new Button { Text = "Select File", Location = new Point(340, 17), Size = new Size(80, 26) };
+        btnSelect1.Click += (_, _) => SelectFile(_txtFile1);
+        Controls.Add(btnSelect1);
 
-        var lbl2 = new Label { Text = "文件 2：", Location = new Point(15, 50), AutoSize = true };
-        _txtFile2 = new TextBox { Location = new Point(70, 48), Width = 300 };
+        Controls.Add(new Label { Text = "File2", Location = new Point(15, 52), AutoSize = true });
+        _txtFile2 = new TextBox { Location = new Point(70, 49), Width = 260, Text = Settings.Get(KeyFile2, "") };
+        Controls.Add(_txtFile2);
 
-        var btnFile2 = new Button { Text = "浏览…", Location = new Point(380, 46), Width = 60 };
-        btnFile2.Click += (s, e) => SelectFile(_txtFile2);
+        var btnSelect2 = new Button { Text = "Select File", Location = new Point(340, 47), Size = new Size(80, 26) };
+        btnSelect2.Click += (_, _) => SelectFile(_txtFile2);
+        Controls.Add(btnSelect2);
 
-        var lblHint = new Label
-        {
-            Text = "说明：比对两个文件的第一个工作表。\n差异内容写入当前工作簿的 Compare 表。",
-            Location = new Point(15, 85), Size = new Size(420, 30), ForeColor = System.Drawing.Color.Gray
-        };
+        var btnCompare = new Button { Text = "Compare", Location = new Point(240, 100), Size = new Size(85, 28) };
+        btnCompare.Click += BtnCompare_Click;
 
-        var btnOK = new Button { Text = "开始比对", Location = new Point(200, 125), Size = new Size(100, 30) };
-        btnOK.Click += BtnOK_Click;
+        var btnCancel = new Button { Text = "Cancel", Location = new Point(335, 100), Size = new Size(85, 28) };
+        btnCancel.Click += (_, _) => Close();
 
-        this.Controls.Add(lbl1); this.Controls.Add(_txtFile1); this.Controls.Add(btnFile1);
-        this.Controls.Add(lbl2); this.Controls.Add(_txtFile2); this.Controls.Add(btnFile2);
-        this.Controls.Add(lblHint);
-        this.Controls.Add(btnOK);
+        Controls.Add(btnCompare);
+        Controls.Add(btnCancel);
+
+        AcceptButton = btnCompare;
+        UiTheme.Apply(this, "Compares the first sheet of two workbooks cell by cell and\nlists every difference on a new Compare sheet.");
+        CancelButton = btnCancel;
     }
 
     private void SelectFile(TextBox target)
     {
-        using var dlg = new OpenFileDialog { Filter = "Excel 文件|*.xls;*.xlsx;*.xlsm" };
-        if (dlg.ShowDialog() == DialogResult.OK)
-            target.Text = dlg.FileName;
+        using var dialog = new OpenFileDialog { Filter = "Excel Files|*.xls;*.xlsx;*.xlsm" };
+        if (dialog.ShowDialog() == DialogResult.OK)
+            target.Text = dialog.FileName;
     }
 
-    private void BtnOK_Click(object? sender, EventArgs e)
+    private void BtnCompare_Click(object? sender, EventArgs e)
     {
         dynamic app = (dynamic)ExcelDnaUtil.Application;
-        if (app == null) { MessageBox.Show("无法获取 Excel 对象。"); return; }
+        if (app == null) { MessageBox.Show("Unable to access Excel.", "Warning"); return; }
 
         string file1 = _txtFile1.Text.Trim();
         string file2 = _txtFile2.Text.Trim();
-        if (string.IsNullOrEmpty(file1) || string.IsNullOrEmpty(file2))
-        { MessageBox.Show("请选择两个文件。"); return; }
-        if (!File.Exists(file1)) { MessageBox.Show($"文件不存在：{file1}"); return; }
-        if (!File.Exists(file2)) { MessageBox.Show($"文件不存在：{file2}"); return; }
 
+        if (string.IsNullOrEmpty(file1) || string.IsNullOrEmpty(file2))
+        {
+            MessageBox.Show("Please select both files.", "Warning");
+            return;
+        }
+        if (!File.Exists(file1)) { MessageBox.Show($"File not found: {file1}", "Warning"); return; }
+        if (!File.Exists(file2)) { MessageBox.Show($"File not found: {file2}", "Warning"); return; }
+
+        Settings.SetMany((KeyFile1, file1), (KeyFile2, file2));
+
+        dynamic? workbook1 = null;
+        dynamic? workbook2 = null;
         try
         {
-            // Open both workbooks
-            dynamic wb1 = app.Workbooks.Open(file1, 0, true);
-            dynamic wb2 = app.Workbooks.Open(file2, 0, true);
+            workbook1 = app.Workbooks.Open(file1, 0, true);
+            workbook2 = app.Workbooks.Open(file2, 0, true);
+
+            dynamic sheet1 = workbook1.Worksheets[1];
+            dynamic sheet2 = workbook2.Worksheets[1];
+
+            int maxRows = Math.Max((int)sheet1.UsedRange.Rows.Count, (int)sheet2.UsedRange.Rows.Count);
+            int maxCols = Math.Max((int)sheet1.UsedRange.Columns.Count, (int)sheet2.UsedRange.Columns.Count);
+
+            dynamic targetSheet = CreateTargetSheet(app, "Compare");
+
+            targetSheet.Cells[1, 1] = "Cell";
+            targetSheet.Cells[1, 2] = "File1";
+            targetSheet.Cells[1, 3] = "File2";
+            targetSheet.Cells[1, 4] = "Difference";
 
             using var progress = new ProgressForm();
             progress.Show();
 
-            // Get first worksheets
-            dynamic ws1 = wb1.Worksheets[1];
-            dynamic ws2 = wb2.Worksheets[1];
-
-            int rows1 = ws1.UsedRange.Rows.Count;
-            int cols1 = ws1.UsedRange.Columns.Count;
-            int rows2 = ws2.UsedRange.Rows.Count;
-            int cols2 = ws2.UsedRange.Columns.Count;
-
-            int maxRows = Math.Max(rows1, rows2);
-            int maxCols = Math.Max(cols1, cols2);
-
-            // Prepare target sheet
-            string tgtName = "Compare";
-            dynamic tgtWs = null;
-            foreach (dynamic ws in app.Worksheets)
-            {
-                if (string.Equals(ws.Name?.ToString().Trim(), tgtName, StringComparison.OrdinalIgnoreCase))
-                { tgtWs = ws; ws.UsedRange.Clear(); break; }
-            }
-            if (tgtWs == null)
-            {
-                tgtWs = app.Worksheets.Add(After: app.ActiveSheet);
-                tgtWs.Name = tgtName;
-            }
-
-            // Write headers
-            tgtWs.Cells[1, 1] = "单元格";
-            tgtWs.Cells[1, 2] = "文件1值";
-            tgtWs.Cells[1, 3] = "文件2值";
-            tgtWs.Cells[1, 4] = "差异类型";
-
-            int diffCount = 0;
+            int differences = 0;
             for (int r = 1; r <= maxRows; r++)
             {
                 for (int c = 1; c <= maxCols; c++)
                 {
-                    string val1 = Convert.ToString(ws1.Cells[r, c].Value)?.Trim() ?? "";
-                    string val2 = Convert.ToString(ws2.Cells[r, c].Value)?.Trim() ?? "";
+                    string value1 = Convert.ToString(sheet1.Cells[r, c].Value)?.Trim() ?? "";
+                    string value2 = Convert.ToString(sheet2.Cells[r, c].Value)?.Trim() ?? "";
 
-                    if (!string.Equals(val1, val2, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(value1, value2, StringComparison.OrdinalIgnoreCase))
                     {
-                        diffCount++;
-                        tgtWs.Cells[diffCount + 1, 1] = $"R{r}C{c}";
-                        tgtWs.Cells[diffCount + 1, 2] = val1;
-                        tgtWs.Cells[diffCount + 1, 3] = val2;
-                        tgtWs.Cells[diffCount + 1, 4] =
-                            string.IsNullOrEmpty(val1) ? "仅文件2" :
-                            string.IsNullOrEmpty(val2) ? "仅文件1" : "值不同";
+                        differences++;
+                        targetSheet.Cells[differences + 1, 1] = $"R{r}C{c}";
+                        targetSheet.Cells[differences + 1, 2] = value1;
+                        targetSheet.Cells[differences + 1, 3] = value2;
+                        targetSheet.Cells[differences + 1, 4] =
+                            string.IsNullOrEmpty(value1) ? "Only in File2" :
+                            string.IsNullOrEmpty(value2) ? "Only in File1" : "Value differs";
                     }
                 }
 
                 if (r % 200 == 0)
                 {
-                    progress.SetMessage($"比对中… {r}/{maxRows}");
+                    progress.SetMessage($"Comparing... {r}/{maxRows}");
                     progress.SetProgress((int)(r * 100.0 / maxRows));
                     Application.DoEvents();
                 }
             }
 
-            tgtWs.Columns.AutoFit();
+            targetSheet.Columns.AutoFit();
+            app.ActiveWorkbook.Save();
+            progress.SetProgress(100);
+            progress.SetMessage($"Done. {differences} difference(s).");
+            Application.DoEvents();
+            System.Threading.Thread.Sleep(600);
 
-            // Close external workbooks
-            wb1.Close(false);
-            wb2.Close(false);
-
-            progress.SetMessage($"比对完成！共 {diffCount} 处差异。");
-            System.Threading.Thread.Sleep(1000);
+            MessageBox.Show($"Finished and Saved! {differences} difference(s).", "Compare");
+            Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"比对出错：{ex.Message}");
+            MessageBox.Show($"Compare failed: {ex.Message}", "Error");
         }
+        finally
+        {
+            try { workbook1?.Close(false); } catch { }
+            try { workbook2?.Close(false); } catch { }
+        }
+    }
+
+    private static dynamic CreateTargetSheet(dynamic app, string name)
+    {
+        foreach (dynamic ws in app.Worksheets)
+        {
+            if (string.Equals(Convert.ToString(ws.Name)?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                ws.UsedRange.Clear();
+                return ws;
+            }
+        }
+
+        dynamic newSheet = app.Worksheets.Add(After: app.ActiveSheet);
+        newSheet.Name = name;
+        return newSheet;
     }
 }

@@ -26,7 +26,7 @@ public class RibbonController : ExcelRibbon
     <tabs>
       <tab id='ExcelToolsTab' label='Excel 工具'>
         <group id='grpData' label='数据处理'>
-          <button id='btnSeperate' label='拆分工作表' size='large' imageMso='FillAcrossWorksheets'
+          <button id='btnSeperate' label='拆分工作表' size='large' imageMso='SplitTable'
                   onAction='OnSeperateClick' screentip='按某列值将总表拆成多个工作表'/>
           <button id='btnFilter' label='条件筛选' size='large' imageMso='Filter'
                   onAction='OnFilterClick' screentip='按多条件筛选数据到新表'/>
@@ -36,11 +36,11 @@ public class RibbonController : ExcelRibbon
                   onAction='OnDeleteClick' screentip='删除与另一表匹配的行'/>
         </group>
         <group id='grpCompare' label='比对'>
-          <button id='btnCompare' label='两表比对' size='large' imageMso='CompareAndMergeWorkbooks'
+          <button id='btnCompare' label='两表比对' size='large' imageMso='CompareAndCombine'
                   onAction='OnCompareClick' screentip='比较两个工作表的数据差异'/>
           <button id='btnTimeCompare' label='差异比对' size='large' imageMso='FindDialogExcel'
                   onAction='OnTimeCompareClick' screentip='按匹配列联表找比对列不一致的行'/>
-          <button id='btnCountDistinct' label='累计去重计数' size='large' imageMso='AutoSumCount'
+          <button id='btnCountDistinct' label='累计去重计数' size='large' imageMso='RemoveDuplicates'
                   onAction='OnCountDistinctClick' screentip='截至每行统计某列累计不重复值数'/>
         </group>
         <group id='grpStat' label='统计'>

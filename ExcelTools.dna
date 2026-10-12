@@ -1,10 +1,10 @@
 <DnaLibrary Name="ExcelTools" RuntimeVersion="v6.0">
-  <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="true" />
-  <!-- 只导出显式标注 [ExcelFunction] 的方法。本项目不对外提供 Excel 公式函数，
-       设为 true 可避免 MyTools 等工具类的 public static 方法（含 FormatToText 同名重载）
-       被自动注册为 Excel 函数而产生 "Repeated function name" 警告并污染名称空间。
+  <!-- ExplicitExports=true: 只导出显式标注 [ExcelFunction] 的方法。
+       本项目不对外提供 Excel 公式函数（入口全走 ribbon onAction），
+       设为 true 可避免 MyTools/RibbonCommands 的 public static 方法
+       （含 FormatToText 同名重载）被自动注册为 Excel 函数。
        onAction 按方法名反射查找，不受此设置影响。 -->
-  <Function ExplicitExports="true" />
+  <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="true" ExplicitExports="true" />
   <CustomUI>
     <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="OnRibbonLoad">
       <ribbon>

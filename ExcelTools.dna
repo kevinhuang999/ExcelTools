@@ -1,5 +1,5 @@
 <DnaLibrary Name="ExcelTools" RuntimeVersion="v6.0">
-  <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="false" />
+  <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="true" />
   <CustomUI>
     <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="OnRibbonLoad">
       <ribbon>

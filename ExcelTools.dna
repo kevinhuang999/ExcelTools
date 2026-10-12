@@ -1,10 +1,12 @@
 <DnaLibrary Name="ExcelTools" RuntimeVersion="v6.0">
-  <!-- ExplicitExports=true: 只导出显式标注 [ExcelFunction] 的方法。
-       本项目不对外提供 Excel 公式函数（入口全走 ribbon onAction），
-       设为 true 可避免 MyTools/RibbonCommands 的 public static 方法
-       （含 FormatToText 同名重载）被自动注册为 Excel 函数。
-       onAction 按方法名反射查找，不受此设置影响。 -->
-  <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="true" ExplicitExports="true" />
+  <!-- 注意：这里不能加 ExplicitExports="true"。
+       Excel-DNA 把「public static 方法」当作要加载的对象，Ribbon 的 onAction
+       处理器本身就是这些对象。若设 ExplicitExports=true 而又没有任何
+       [ExcelFunction] 标注，Excel-DNA 会报
+       "Initialization [Error] No objects loaded from ExcelTools, ..."。
+       工具类的方法重名问题改用「类设为 internal」解决（Excel-DNA 只扫 public 类型），
+       见 Common/MyTools.cs 与 Forms/FrmGetFileNames.cs。 -->
+  <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="true" />
   <CustomUI>
     <customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="OnRibbonLoad">
       <ribbon>

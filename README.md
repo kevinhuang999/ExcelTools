@@ -7,7 +7,7 @@
 <a id="中文"></a>
 # 中文
 
-> **一句话**：Excel-DNA 插件，11 个通用数据处理工具，拷贝即用。
+> **一句话**：Excel-DNA 插件，11 个通用数据处理工具——把"手工搬半天"的活压成一键。
 
 ## 一、构建
 
@@ -109,7 +109,7 @@ ExcelTools/
 <a id="english"></a>
 # English
 
-> **One-liner**: An Excel-DNA add-in with 11 general-purpose data-processing tools, copy-and-run.
+> **One-liner**: An Excel-DNA add-in with 11 general-purpose data-processing tools — it turns half a day of manual work into one click.
 
 ## 1. Build
 

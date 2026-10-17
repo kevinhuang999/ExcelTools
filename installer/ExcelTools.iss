@@ -441,18 +441,92 @@ end;
 
 { ------------------------------------------------------------ WPS 支持 }
 
-{ WPS 把 xll 加载项记在 LoadMacros：值名 = xll 完整路径，数据 = "0"（String）。
-  实测自 12.1.0.29158 商业版（2026-10-17 注册表 diff 得出）。 }
+{ WPS 把 xll 加载项记在 LoadMacros：值名 = xll 完整路径，数据 = "0"/"1"（String）。
+  实测自 12.1.0.29158 商业版（2026-10-17 注册表 diff 得出）：
+  数据 "1" = 启动时加载（勾选后 WPS 自己写的），"0" = 不加载。 }
+
+const
+  SCS_32BIT_BINARY = 0;
+  SCS_64BIT_BINARY = 6;
+
+
+function GetBinaryTypeA(lpApplicationName: AnsiString; var lpBinaryType: DWORD): BOOL;
+  external 'GetBinaryTypeA@kernel32.dll stdcall';
+
+{ 找已安装 WPS 的 et.exe；从卸载项反推安装目录，找不到返回空串 }
+function FindWpsEt(): String;
+var
+  Base, Key, DName, UnStr, Root, Cand: String;
+  I, N: Integer;
+  Keys: TArrayOfString;
+begin
+  Result := '';
+  Base := 'Software\Microsoft\Windows\CurrentVersion\Uninstall';
+  if not RegGetSubkeyNames(HKCU, Base, Keys) then
+    exit;
+  for I := 0 to GetArrayLength(Keys) - 1 do
+  begin
+    Key := Base + '\' + Keys[I];
+    if RegQueryStringValue(HKCU, Key, 'DisplayName', DName) then
+    begin
+      if Pos('WPS', DName) > 0 then
+      begin
+        if RegQueryStringValue(HKCU, Key, 'UninstallString', UnStr) then
+        begin
+          if (Length(UnStr) >= 2) and (UnStr[1] = '"') then
+            UnStr := Copy(UnStr, 2, Length(UnStr) - 2);
+          N := Pos('\utility\uninst.exe', Lowercase(UnStr));
+          if N > 0 then
+          begin
+            Root := Copy(UnStr, 1, N - 1);
+            Cand := AddBackslash(Root) + 'office6\et.exe';
+            if FileExists(Cand) then
+            begin
+              Result := Cand;
+              exit;
+            end;
+          end;
+        end;
+      end;
+    end;
+  end;
+end;
+
+{ 按 WPS 位数决定哪个 xll 数据写 "1"（位数匹配才加载）；WPS 未装时默认按 64 位 }
 procedure RegisterWPS();
 var
-  AppDir, Base, Sub, Path: String;
+  AppDir, Base, Sub, Path, Et: String;
   I: Integer;
+  BT: DWORD;
+  Is64: Boolean;
 begin
   AppDir := AddBackslash(ExpandConstant('{app}'));
   Base := 'Software\kingsoft\Office\6.0\et\LoadMacros';
-  { 32/64 两套 xll 都登记，WPS 32 位与 64 位都能认 }
-  RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools64.xll', '0');
-  RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools.xll', '0');
+
+  Et := FindWpsEt();
+  Is64 := True;
+  if Et <> '' then
+  begin
+    if GetBinaryTypeA(Et, BT) then
+      Is64 := (BT = SCS_64BIT_BINARY);
+    if Is64 then
+      Log('检测到 WPS（64 位）: ' + Et)
+    else
+      Log('检测到 WPS（32 位）: ' + Et);
+  end;
+
+  { 位数匹配的写 "1"，另一个写 "0"——两个都登记，加载项对话框里可见可改 }
+  if Is64 then
+  begin
+    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools64.xll', '1');
+    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools.xll', '0');
+  end
+  else
+  begin
+    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools64.xll', '0');
+    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools.xll', '1');
+  end;
+
   { WPS 自己的信任位置（豁免沙箱对插件写文件的限制） }
   Sub := 'Software\kingsoft\Office\6.0\et\Security\Trusted Locations';
   for I := 0 to 99 do
@@ -465,12 +539,16 @@ begin
       break;
     end;
   end;
+
+  { 启动加载清单：LoadMacros 只是登记，LoadingAddIns 里列出的 xll 才会随启动加载 }
+  Base := 'Software\kingsoft\Office\6.0\et\LoadAddIns';
+  RegWriteStringValue(HKCU, Base, 'LoadingAddIns', AppDir + 'ExcelTools64.xll');
 end;
 
 procedure RemoveWpsEntries();
 var
   Base, AppDir, P, X64, X32: String;
-  I: Integer;
+  I, N: Integer;
 begin
   AppDir := AddBackslash(ExpandConstant('{app}'));
   X64 := AppDir + 'ExcelTools64.xll';
@@ -497,6 +575,28 @@ begin
         RegDeleteKeyIncludingSubkeys(HKCU, Base + '\Location' + IntToStr(I));
         Log('已移除 WPS 信任位置：Location' + IntToStr(I));
       end;
+
+  { 从启动加载清单里摘除（保持其他加载项不动） }
+  Base := 'Software\kingsoft\Office\6.0\et\LoadAddIns';
+  if RegQueryStringValue(HKCU, Base, 'LoadingAddIns', P) then
+  begin
+    N := Pos(X64, P);
+    if N > 0 then
+    begin
+      P := Copy(P, 1, N - 1) + Copy(P, N + Length(X64), Length(P));
+      while Pos(';;', P) > 0 do
+      begin
+        N := Pos(';;', P);
+        P := Copy(P, 1, N - 1) + Copy(P, N + 2, Length(P));
+      end;
+      if (Length(P) > 0) and (P[1] = ';') then
+        P := Copy(P, 2, Length(P));
+      if (Length(P) > 0) and (P[Length(P)] = ';') then
+        P := Copy(P, 1, Length(P) - 1);
+      RegWriteStringValue(HKCU, Base, 'LoadingAddIns', P);
+      Log('已从 WPS LoadingAddIns 移除 ExcelTools64');
+    end;
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

@@ -1,3 +1,4 @@
+#if !WPS_BUILD
 namespace ExcelTools;
 
 using System.IO;
@@ -98,7 +99,7 @@ public class RibbonController : ExcelRibbon
     public void OnGetFileNamesClick(IRibbonControl control)  => Run(Loc.T("文件名列表", "File Names"), () => { FrmGetFileNames.Run(); return null; });
 
     /// <summary>Wrap a tool launch: catch, log and show the full exception chain.</summary>
-    internal static void Run(string toolName, Func<Form?> factory)
+    private static void Run(string toolName, Func<Form?> factory)
     {
         try
         {
@@ -155,3 +156,4 @@ public class RibbonController : ExcelRibbon
         }
     }
 }
+#endif

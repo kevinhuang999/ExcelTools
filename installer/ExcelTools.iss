@@ -97,6 +97,16 @@ Source: "README_客户版.txt";                        DestDir: "{app}"; DestNam
 Source: "ExcelTools.ico";                           DestDir: "{app}"; Flags: ignoreversion
 ; WPS 支持：预置托管宿主，避免 Excel-DNA 首次加载时在 WPS 沙箱里写文件被拒（0x80070005）
 Source: "ExcelDna.ManagedHost.dll";                 DestDir: "{app}"; Flags: ignoreversion
+; WPS 专用版（无 Ribbon 提供者，改用 CommandBar 工具栏，避免 WPS 的 COMAddIns
+; 集合为空导致 Ribbon 注册失败、宿主异常退出）。文件加 Wps 前缀与 Excel 版共存。
+Source: "{#SrcDir}\ExcelToolsWps64.xll";           DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps64.dna";           DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps64.deps.json";     DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps.xll";             DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps.dna";             DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps.dll";             DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps.deps.json";       DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\ExcelToolsWps.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
 #ifdef BundleRuntime
 ; 内置运行时：不复制到安装目录，只在检测到缺失时解压到临时目录运行
 Source: "runtime\{#RuntimeInstaller}";              DestDir: "{tmp}"; Flags: dontcopy nocompression
@@ -492,10 +502,17 @@ begin
   end;
 end;
 
-{ 按 WPS 位数决定哪个 xll 数据写 "1"（位数匹配才加载）；WPS 未装时默认按 64 位 }
+{ 按 WPS 位数决定注册哪个 xll；WPS 未装时默认按 64 位。
+  ★ 关键：WPS 用的是 Wps 专用版（ExcelToolsWps*.xll），不是 Excel 版 ★
+  三处都要写，缺一不可（2026-10-17 实测）：
+    1) 6.0\et\LoadMacros      值名=xll 完整路径，数据 "1"
+    2) 6.0\et\LoadAddIns      值 LoadingAddIns = xll 完整路径
+    3) Microsoft\Office\16.0\Excel\Add-in Manager  值名=xll 完整路径，数据 "1"
+       （WPS 的「工具-加载项」对话框复用这个键）
+  另外必须预置 ExcelDna.ManagedHost.dll，否则 WPS 沙箱拒绝写宿主文件。 }
 procedure RegisterWPS();
 var
-  AppDir, Base, Sub, Path, Et: String;
+  AppDir, Base, Xll, Et: String;
   I: Integer;
   BT: DWORD;
   Is64: Boolean;
@@ -515,58 +532,96 @@ begin
       Log('检测到 WPS（32 位）: ' + Et);
   end;
 
-  { 位数匹配的写 "1"，另一个写 "0"——两个都登记，加载项对话框里可见可改 }
   if Is64 then
-  begin
-    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools64.xll', '1');
-    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools.xll', '0');
-  end
+    Xll := AppDir + 'ExcelToolsWps64.xll'
   else
-  begin
-    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools64.xll', '0');
-    RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools.xll', '1');
-  end;
+    Xll := AppDir + 'ExcelToolsWps.xll';
+
+  { 1) LoadMacros }
+  RegWriteStringValue(HKCU, Base, Xll, '1');
+
+  { 2) LoadingAddIns（真正的启动加载清单） }
+  RegWriteStringValue(HKCU, 'Software\kingsoft\Office\6.0\et\LoadAddIns',
+                      'LoadingAddIns', Xll);
+
+  { 3) Add-in Manager（WPS 加载项对话框复用 Excel 的这个键） }
+  RegWriteStringValue(HKCU, 'Software\Microsoft\Office\16.0\Excel\Add-in Manager',
+                      Xll, '1');
 
   { WPS 自己的信任位置（豁免沙箱对插件写文件的限制） }
-  Sub := 'Software\kingsoft\Office\6.0\et\Security\Trusted Locations';
+  Base := 'Software\kingsoft\Office\6.0\et\Security\Trusted Locations';
   for I := 0 to 99 do
   begin
-    Path := Sub + '\Location' + IntToStr(I);
-    if not RegKeyExists(HKCU, Path) then
+    if not RegKeyExists(HKCU, Base + '\Location' + IntToStr(I)) then
     begin
-      RegWriteStringValue(HKCU, Path, 'Path', AppDir);
-      RegWriteDWordValue(HKCU, Path, 'AllowSubFolders', 1);
+      RegWriteStringValue(HKCU, Base + '\Location' + IntToStr(I), 'Path', AppDir);
+      RegWriteDWordValue(HKCU, Base + '\Location' + IntToStr(I), 'AllowSubFolders', 1);
       break;
     end;
   end;
-
-  { 启动加载清单：LoadMacros 只是登记，LoadingAddIns 里列出的 xll 才会随启动加载 }
-  Base := 'Software\kingsoft\Office\6.0\et\LoadAddIns';
-  RegWriteStringValue(HKCU, Base, 'LoadingAddIns', AppDir + 'ExcelTools64.xll');
 end;
 
 procedure RemoveWpsEntries();
 var
-  Base, AppDir, P, X64, X32: String;
+  Base, AppDir, P, X64, X32, W64, W32: String;
   I, N: Integer;
 begin
   AppDir := AddBackslash(ExpandConstant('{app}'));
   X64 := AppDir + 'ExcelTools64.xll';
   X32 := AppDir + 'ExcelTools.xll';
+  W64 := AppDir + 'ExcelToolsWps64.xll';
+  W32 := AppDir + 'ExcelToolsWps.xll';
+
+  { LoadMacros：四种路径都清（含早期版本写过的 Excel 版路径） }
   Base := 'Software\kingsoft\Office\6.0\et\LoadMacros';
   if RegKeyExists(HKCU, Base) then
   begin
+    if RegValueExists(HKCU, Base, W64) then
+    begin
+      RegDeleteValue(HKCU, Base, W64);
+      Log('已移除 WPS 加载项：ExcelToolsWps64.xll');
+    end;
+    if RegValueExists(HKCU, Base, W32) then
+    begin
+      RegDeleteValue(HKCU, Base, W32);
+      Log('已移除 WPS 加载项：ExcelToolsWps.xll');
+    end;
     if RegValueExists(HKCU, Base, X64) then
     begin
       RegDeleteValue(HKCU, Base, X64);
-      Log('已移除 WPS 加载项：ExcelTools64.xll');
+      Log('已移除 WPS 加载项（旧版遗留）：ExcelTools64.xll');
     end;
     if RegValueExists(HKCU, Base, X32) then
     begin
       RegDeleteValue(HKCU, Base, X32);
-      Log('已移除 WPS 加载项：ExcelTools.xll');
+      Log('已移除 WPS 加载项（旧版遗留）：ExcelTools.xll');
     end;
   end;
+
+  { Add-in Manager（WPS 加载项对话框复用 Excel 这个键） }
+  Base := 'Software\Microsoft\Office\16.0\Excel\Add-in Manager';
+  if RegKeyExists(HKCU, Base) then
+  begin
+    if RegValueExists(HKCU, Base, W64) then
+    begin
+      RegDeleteValue(HKCU, Base, W64);
+      Log('已移除 Add-in Manager：ExcelToolsWps64.xll');
+    end;
+    if RegValueExists(HKCU, Base, W32) then
+    begin
+      RegDeleteValue(HKCU, Base, W32);
+      Log('已移除 Add-in Manager：ExcelToolsWps.xll');
+    end;
+    if RegValueExists(HKCU, Base, X64) then
+    begin
+      RegDeleteValue(HKCU, Base, X64);
+      Log('已移除 Add-in Manager（旧版遗留）：ExcelTools64.xll');
+    end;
+    if RegValueExists(HKCU, Base, X32) then
+      RegDeleteValue(HKCU, Base, X32);
+  end;
+
+  { 信任位置 }
   Base := 'Software\kingsoft\Office\6.0\et\Security\Trusted Locations';
   for I := 0 to 99 do
     if RegQueryStringValue(HKCU, Base + '\Location' + IntToStr(I), 'Path', P) then
@@ -580,10 +635,10 @@ begin
   Base := 'Software\kingsoft\Office\6.0\et\LoadAddIns';
   if RegQueryStringValue(HKCU, Base, 'LoadingAddIns', P) then
   begin
-    N := Pos(X64, P);
+    N := Pos(W64, P);
     if N > 0 then
     begin
-      P := Copy(P, 1, N - 1) + Copy(P, N + Length(X64), Length(P));
+      P := Copy(P, 1, N - 1) + Copy(P, N + Length(W64), Length(P));
       while Pos(';;', P) > 0 do
       begin
         N := Pos(';;', P);
@@ -594,7 +649,23 @@ begin
       if (Length(P) > 0) and (P[Length(P)] = ';') then
         P := Copy(P, 1, Length(P) - 1);
       RegWriteStringValue(HKCU, Base, 'LoadingAddIns', P);
-      Log('已从 WPS LoadingAddIns 移除 ExcelTools64');
+      Log('已从 WPS LoadingAddIns 移除 ExcelToolsWps64');
+    end;
+    N := Pos(W32, P);
+    if N > 0 then
+    begin
+      P := Copy(P, 1, N - 1) + Copy(P, N + Length(W32), Length(P));
+      while Pos(';;', P) > 0 do
+      begin
+        N := Pos(';;', P);
+        P := Copy(P, 1, N - 1) + Copy(P, N + 2, Length(P));
+      end;
+      if (Length(P) > 0) and (P[1] = ';') then
+        P := Copy(P, 2, Length(P));
+      if (Length(P) > 0) and (P[Length(P)] = ';') then
+        P := Copy(P, 1, Length(P) - 1);
+      RegWriteStringValue(HKCU, Base, 'LoadingAddIns', P);
+      Log('已从 WPS LoadingAddIns 移除 ExcelToolsWps');
     end;
   end;
 end;

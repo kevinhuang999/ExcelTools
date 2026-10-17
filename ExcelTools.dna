@@ -1,4 +1,6 @@
-<DnaLibrary Name="ExcelTools" RuntimeVersion="v6.0">
+<?xml version="1.0" encoding="utf-8"?>
+<DnaLibrary Name="ExcelTools" RuntimeVersion="v10.0" RollForward="LatestMinor"
+            xmlns="http://schemas.excel-dna.net/addin/2020/07/dnalibrary">
   <!-- 功能区（Ribbon）由代码提供，见 RibbonController.cs（继承 ExcelRibbon）。
        Excel-DNA 只有在程序集里存在一个 ExcelRibbon 派生类时，才会把它作为 COM 加载项
        注册进 Excel，并由它向 Excel 提供功能区 XML；只在 .dna 里写 <CustomUI> 而没有
@@ -6,6 +8,10 @@
 
        另外：这里不要加 ExplicitExports="true"。Excel-DNA 把 public static 方法当作
        要加载的对象，设了它且没有任何 [ExcelFunction] 标注时会报
-       "Initialization [Error] No objects loaded"。 -->
+       "Initialization [Error] No objects loaded"。
+
+       ★★ xmlns 那一行不能删：这是 2020/07 版 dna 格式的标识。缺了它，Excel-DNA
+       会把本文件当旧版文档解析，RuntimeVersion 被忽略并回落到 .NET 6 —— 表现是
+       Excel 能起加载项但程序集加载失败，且不报明显错误。★★ -->
   <ExternalLibrary Path="ExcelTools.dll" LoadFromBytes="true" />
 </DnaLibrary>

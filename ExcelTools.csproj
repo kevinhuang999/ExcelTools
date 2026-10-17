@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -9,7 +9,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>ExcelTools</AssemblyName>
     <RootNamespace>ExcelTools</RootNamespace>
-    <Version>2.0.0</Version>
+    <Version>2.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,7 +17,7 @@
     <PackageReference Include="ExcelDna.AddIn" Version="1.9.0-*" />
     <!-- 必须与 TargetFramework 主版本号一致：7.0.0 会拖入 System.Drawing.Common 7.0.0，
          覆盖 framework 版本导致 Control.set_Font 类型分裂，抛 MissingMethodException -->
-    <PackageReference Include="System.Data.OleDb" Version="6.0.0" />
+    <PackageReference Include="System.Data.OleDb" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

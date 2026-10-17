@@ -4,5 +4,11 @@ obj/
 *.suo
 .vs/
 _diag_*.txt
+# Inno Setup 编译产物
+installer/output/
+# 内嵌的 .NET 运行时安装器（58MB，不进仓库）
+installer/runtime/
 # Forms are implemented in pure code (no Designer); VS may leave empty .resx behind
 Forms/*.resx
+# VS 本地发布配置（机器生成，不入库；发布走 installer/ 里的 Inno Setup 脚本）
+Properties/PublishProfiles/

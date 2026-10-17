@@ -98,7 +98,7 @@ public class RibbonController : ExcelRibbon
     public void OnGetFileNamesClick(IRibbonControl control)  => Run(Loc.T("文件名列表", "File Names"), () => { FrmGetFileNames.Run(); return null; });
 
     /// <summary>Wrap a tool launch: catch, log and show the full exception chain.</summary>
-    private static void Run(string toolName, Func<Form?> factory)
+    internal static void Run(string toolName, Func<Form?> factory)
     {
         try
         {

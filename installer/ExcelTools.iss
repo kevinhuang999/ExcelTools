@@ -29,7 +29,8 @@
 
 #define AppName        "ExcelTools"
 #define AppVersion     "2.2.0"
-#define AppPublisher   "黄健华"
+#define AppPublisher   "HJH Rubber Duck"
+#define AppCopyright   "© 2026 HJH Rubber Duck"
 ; 目标框架主版本（决定检测哪一个桌面运行时）
 #define RuntimeMajor   "10"
 ; 相对本 .iss 所在目录的构建产物位置
@@ -50,6 +51,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
+AppCopyright={#AppCopyright}
 VersionInfoVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
@@ -68,6 +70,10 @@ ArchitecturesAllowed=x64compatible
 CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName={#AppName}
+; 安装包自身在资源管理器/任务栏里显示的图标
+SetupIconFile=ExcelTools.ico
+; 「应用和功能」列表里那一格图标，读的就是这个（指向装进 {app} 的 ico）
+UninstallDisplayIcon={app}\ExcelTools.ico
 
 [Languages]
 Name: "cn"; MessagesFile: "lang\ChineseSimplified.isl"
@@ -87,13 +93,15 @@ Source: "{#SrcDir}\ExcelTools.deps.json";          DestDir: "{app}"; Flags: igno
 Source: "{#SrcDir}\ExcelTools.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\runtimes\*";                    DestDir: "{app}\runtimes"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README_客户版.txt";                        DestDir: "{app}"; DestName: "使用说明.txt"; Flags: ignoreversion isreadme
+; 图标：装进安装目录，供「应用和功能」的 UninstallDisplayIcon 引用
+Source: "ExcelTools.ico";                           DestDir: "{app}"; Flags: ignoreversion
 #ifdef BundleRuntime
 ; 内置运行时：不复制到安装目录，只在检测到缺失时解压到临时目录运行
 Source: "runtime\{#RuntimeInstaller}";              DestDir: "{tmp}"; Flags: dontcopy nocompression
 #endif
 
-[Run]
-Filename: "{app}\使用说明.txt"; Description: "打开使用说明"; Flags: postinstall shellexec nowait skipifsilent unchecked
+; 说明文件的"查阅/打开"入口只保留 [Files] 里那条 isreadme（Inno 内置、自带中文标签）。
+; 早先这里还有一条 [Run] postinstall 的"打开使用说明"，与 isreadme 在完成页重复，已删除。
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\runtimes"

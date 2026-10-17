@@ -8,6 +8,8 @@ _diag_*.txt
 installer/output/
 # 内嵌的 .NET 运行时安装器（58MB，不进仓库）
 installer/runtime/
+# 图标预览图（只是给人看效果，图标正本是 installer/ExcelTools.ico）
+installer/_icon_preview.png
 # Forms are implemented in pure code (no Designer); VS may leave empty .resx behind
 Forms/*.resx
 # VS 本地发布配置（机器生成，不入库；发布走 installer/ 里的 Inno Setup 脚本）

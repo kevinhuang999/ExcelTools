@@ -95,6 +95,8 @@ Source: "{#SrcDir}\runtimes\*";                    DestDir: "{app}\runtimes"; Fl
 Source: "README_客户版.txt";                        DestDir: "{app}"; DestName: "使用说明.txt"; Flags: ignoreversion isreadme
 ; 图标：装进安装目录，供「应用和功能」的 UninstallDisplayIcon 引用
 Source: "ExcelTools.ico";                           DestDir: "{app}"; Flags: ignoreversion
+; WPS 支持：预置托管宿主，避免 Excel-DNA 首次加载时在 WPS 沙箱里写文件被拒（0x80070005）
+Source: "ExcelDna.ManagedHost.dll";                 DestDir: "{app}"; Flags: ignoreversion
 #ifdef BundleRuntime
 ; 内置运行时：不复制到安装目录，只在检测到缺失时解压到临时目录运行
 Source: "runtime\{#RuntimeInstaller}";              DestDir: "{tmp}"; Flags: dontcopy nocompression
@@ -437,6 +439,66 @@ begin
   end;
 end;
 
+{ ------------------------------------------------------------ WPS 支持 }
+
+{ WPS 把 xll 加载项记在 LoadMacros：值名 = xll 完整路径，数据 = "0"（String）。
+  实测自 12.1.0.29158 商业版（2026-10-17 注册表 diff 得出）。 }
+procedure RegisterWPS();
+var
+  AppDir, Base, Sub, Path: String;
+  I: Integer;
+begin
+  AppDir := AddBackslash(ExpandConstant('{app}'));
+  Base := 'Software\kingsoft\Office\6.0\et\LoadMacros';
+  { 32/64 两套 xll 都登记，WPS 32 位与 64 位都能认 }
+  RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools64.xll', '0');
+  RegWriteStringValue(HKCU, Base, AppDir + 'ExcelTools.xll', '0');
+  { WPS 自己的信任位置（豁免沙箱对插件写文件的限制） }
+  Sub := 'Software\kingsoft\Office\6.0\et\Security\Trusted Locations';
+  for I := 0 to 99 do
+  begin
+    Path := Sub + '\Location' + IntToStr(I);
+    if not RegKeyExists(HKCU, Path) then
+    begin
+      RegWriteStringValue(HKCU, Path, 'Path', AppDir);
+      RegWriteDWordValue(HKCU, Path, 'AllowSubFolders', 1);
+      break;
+    end;
+  end;
+end;
+
+procedure RemoveWpsEntries();
+var
+  Base, AppDir, P, X64, X32: String;
+  I: Integer;
+begin
+  AppDir := AddBackslash(ExpandConstant('{app}'));
+  X64 := AppDir + 'ExcelTools64.xll';
+  X32 := AppDir + 'ExcelTools.xll';
+  Base := 'Software\kingsoft\Office\6.0\et\LoadMacros';
+  if RegKeyExists(HKCU, Base) then
+  begin
+    if RegValueExists(HKCU, Base, X64) then
+    begin
+      RegDeleteValue(HKCU, Base, X64);
+      Log('已移除 WPS 加载项：ExcelTools64.xll');
+    end;
+    if RegValueExists(HKCU, Base, X32) then
+    begin
+      RegDeleteValue(HKCU, Base, X32);
+      Log('已移除 WPS 加载项：ExcelTools.xll');
+    end;
+  end;
+  Base := 'Software\kingsoft\Office\6.0\et\Security\Trusted Locations';
+  for I := 0 to 99 do
+    if RegQueryStringValue(HKCU, Base + '\Location' + IntToStr(I), 'Path', P) then
+      if CompareText(AddBackslash(P), AppDir) = 0 then
+      begin
+        RegDeleteKeyIncludingSubkeys(HKCU, Base + '\Location' + IntToStr(I));
+        Log('已移除 WPS 信任位置：Location' + IntToStr(I));
+      end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   S: String;
@@ -447,12 +509,13 @@ begin
     ClearDisabledItems();
     AddTrustedLocation();
     RegisterAddIn();
+    RegisterWPS();
     if not WizardSilent then
     begin
       S := '安装完成。' + #13#10 + #13#10;
-      S := S + '接下来：打开 Excel，功能区会出现「Excel 工具」选项卡。' + #13#10;
-      S := S + '不需要再双击任何文件，也不会再弹安全提示。' + #13#10 + #13#10;
-      S := S + '如果功能区没出现，请完全退出 Excel（任务管理器里确认没有 EXCEL.EXE）再打开。';
+      S := S + '接下来：打开 Excel 或 WPS 表格，功能区会出现「Excel 工具」选项卡。' + #13#10;
+      S := S + 'WPS 首次加载如弹出 ExcelDna.Host 提示，点确定后重启 WPS 即可。' + #13#10 + #13#10;
+      S := S + '如果功能区没出现，请完全退出程序（任务管理器里确认没有 EXCEL.EXE / wps.exe）再打开。';
       MsgBox(S, mbInformation, MB_OK);
     end;
   end;
@@ -499,5 +562,8 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
+  begin
     RemoveOwnEntries();
+    RemoveWpsEntries();
+  end;
 end;

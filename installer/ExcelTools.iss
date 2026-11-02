@@ -10,6 +10,7 @@
 ;  产物：installer\output\ExcelTools-Setup-<版本>-Lite.exe / -Full.exe
 ;
 ;  安装包做的事（客户双击一次，之后永久可用）：
+;    0. 安装界面语言 = 计算机显示语言（中文 / 英文，不弹语言选择框）
 ;    1. 拷文件到 %LOCALAPPDATA%\Programs\ExcelTools —— 免管理员、免 UAC
 ;    2. 自动判断客户机 Office 是 32 位还是 64 位，注册对应的那个 xll
 ;    3. 写「Excel 信任位置」—— 消掉"没有可用的数字签名"那个弹窗
@@ -74,9 +75,20 @@ UninstallDisplayName={#AppName}
 SetupIconFile=ExcelTools.ico
 ; 「应用和功能」列表里那一格图标，读的就是这个（指向装进 {app} 的 ico）
 UninstallDisplayIcon={app}\ExcelTools.ico
+; ★界面语言 = 计算机显示语言（跨项目铁律，2026-10-27 黄总定）：
+;   ShowLanguageDialog=no 不弹语言选择框，Setup 按 GetUserDefaultUILanguage()
+;   自动挑与系统显示语言一致的那套（uilanguage = 微软推荐口径，MUI 系统取当前显示语言）；
+;   两个都不匹配时回落 [Languages] 段第一项（即中文；Inno 无 DefaultLanguage 指令）。
+LanguageDetectionMethod=uilanguage
+ShowLanguageDialog=no
 
 [Languages]
-Name: "cn"; MessagesFile: "lang\ChineseSimplified.isl"
+; 顺序有讲究：中文必须排第一 —— 系统语言两个都不匹配时，Inno 取第一个语言兜底。
+; 匹配系统语言靠 .isl 里的 LanguageID（zhcn / en-US），与这里的 Name 无关。
+; ★中文用 compiler: 前缀 = Inno Setup 7 自带的官方简体中文（7.0.2 起纳入官方翻译）。
+;   ★compiler: 只解析到 Inno 安装根目录，中文在 Languages\ 子目录，不能再省这一层。
+;   6.x 的 Languages\ 里没有中文，用 6 编译会报错 —— 本项目要求 Inno Setup 7。
+Name: "cn"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Files]

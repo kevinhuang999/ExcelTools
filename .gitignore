@@ -14,3 +14,5 @@ installer/_icon_preview.png
 Forms/*.resx
 # VS 本地发布配置（机器生成，不入库；发布走 installer/ 里的 Inno Setup 脚本）
 Properties/PublishProfiles/
+# WPS 修复前导出的本地注册表备份（仅用于本机回滚，不入库）
+_reg_backup/
